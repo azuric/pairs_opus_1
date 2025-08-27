@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{381076EE-F3EC-4512-83C2-9D9EC986CE0B}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Backtest</RootNamespace>
+    <AssemblyName>Backtest</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="SmartQuant" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="MyScenario.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="MyScenario.Designer.cs">
+      <DependentUpon>MyScenario.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Container\Container.csproj">
+      <Project>{454675da-61f3-4e3f-a20a-2293a7a7ec5a}</Project>
+      <Name>Container</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\MyStrategy\MyStrategy.csproj">
+      <Name>MyStrategy</Name>
+      <Project>{DB331F44-15A6-4D69-B34D-2CC417D419AF}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\Paramters\Parameters.csproj">
+      <Project>{3282978d-4c49-4fb8-aa99-2670f110cfc4}</Project>
+      <Name>Parameters</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\PriceExecutionHandler\PriceExecutionHandler.csproj">
+      <Project>{77346898-dc16-45ad-8439-727ccd69a865}</Project>
+      <Name>PriceExecutionHandler</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\StrategyManagement\StrategyManagement.csproj">
+      <Project>{ffbfa676-816f-4624-aa73-d020d033b166}</Project>
+      <Name>StrategyManagement</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
