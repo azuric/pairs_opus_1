@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using SmartQuant;
 using Parameters;
+using SmartQuant.Strategy_;
 
 namespace StrategyManagement
 {
@@ -26,28 +27,61 @@ namespace StrategyManagement
 
         public override void Initialize(StrategyParameters parameters)
         {
-            base.Initialize(parameters);
+            base.Initialize(parameters); // This now handles both signal and trade configuration
 
+            // Existing parameter initialization...
             lookbackPeriod = 120;
             entryThreshold = 2.0;
             exitThreshold = 1.0;
             stopLossPercent = 0.03;
             takeProfitPercent = 0.05;
 
-            if (parameters.threshold_entry != null && parameters.threshold_entry.Length > 0)
+            // Parse strategy-specific parameters...
+            // (existing parameter parsing code)
+
+            // NEW: Enhanced logging
+            Console.WriteLine($"MeanReversionStrategy {Name} initialized:");
+            Console.WriteLine($"  Signal Source: {GetSignalSourceDescription()}");
+            Console.WriteLine($"  Trade Instrument: {GetExecutionInstrumentDescription()}");
+            Console.WriteLine($"  Lookback Period: {lookbackPeriod}");
+            Console.WriteLine($"  Entry Threshold: {entryThreshold}");
+            Console.WriteLine($"  Exit Threshold: {exitThreshold}");
+            Console.WriteLine($"  Stop Loss: {stopLossPercent:P2}");
+            Console.WriteLine($"  Take Profit: {takeProfitPercent:P2}");
+
+            // NEW: Validate configuration
+            ValidateSignalTradeConfiguration();
+        }
+
+        // NEW: Validation method
+        private void ValidateSignalTradeConfiguration()
+        {
+            if (!isPairMode)
             {
-                lookbackPeriod = (int)parameters.threshold_entry[0][0];
-                if (parameters.threshold_entry[0].Length > 1)
-                    entryThreshold = parameters.threshold_entry[0][1];
+                Console.WriteLine("Single instrument mode: Signal and trade instrument are the same.");
+                return;
             }
 
-            if (parameters.threshold_exit != null && parameters.threshold_exit.Length > 0)
+            if (signalSource == executionInstrumentSource)
             {
-                exitThreshold = parameters.threshold_exit[0][0];
-                if (parameters.threshold_exit[0].Length > 1)
-                    stopLossPercent = parameters.threshold_exit[0][1];
-                if (parameters.threshold_exit[0].Length > 2)
-                    takeProfitPercent = parameters.threshold_exit[0][2];
+                Console.WriteLine($"Using {signalSource} for both signals and trading.");
+            }
+            else
+            {
+                Console.WriteLine($"Cross-instrument strategy: Signals from {signalSource}, trading {executionInstrumentSource}");
+
+                // Add specific warnings for certain combinations
+                if (signalSource == SignalSource.Synthetic && executionInstrumentSource != SignalSource.Synthetic)
+                {
+                    Console.WriteLine("Note: Using synthetic signals to trade individual instruments. " +
+                                    "Ensure proper position sizing and risk management.");
+                }
+
+                if (signalSource != SignalSource.Synthetic && executionInstrumentSource == SignalSource.Synthetic)
+                {
+                    Console.WriteLine("Note: Using individual instrument signals to trade synthetic. " +
+                                    "Consider correlation and liquidity differences.");
+                }
             }
         }
 
@@ -110,6 +144,8 @@ namespace StrategyManagement
         {
             Bar signalBar = GetSignalBar(bars);
 
+            Bar executionBar = GetExecutionInstrumentBar(bars);
+
             if (ShouldExitAllPositions(signalBar.DateTime))
                 return true;
 
@@ -117,7 +153,8 @@ namespace StrategyManagement
                 return false;
 
             // Check stop/take profit
-            double pnlPercent = CalculateUnrealizedPnLPercent(signalBar.Close);
+            double pnlPercent = CalculateUnrealizedPnLPercent(executionBar.Close);
+
             if (pnlPercent < -stopLossPercent || pnlPercent > takeProfitPercent)
                 return true;
 
@@ -177,18 +214,22 @@ namespace StrategyManagement
 
         public override double GetEntryPrice(Bar[] bars, OrderSide side)
         {
-            Bar signalBar = GetSignalBar(bars);
+            // Use the TRADE instrument bar for pricing, not the signal bar
+
+
+            Bar tradeBar = GetExecutionInstrumentBar(bars);
 
             if (side == OrderSide.Buy)
-                return signalBar.Close - (Parameters.inst_tick_size * 2);
+                return tradeBar.Close;// (Parameters.inst_tick_size * 2);
             else
-                return signalBar.Close + (Parameters.inst_tick_size * 2);
+                return tradeBar.Close;//Parameters.inst_tick_size * 2);
         }
 
         public override double GetExitPrice(Bar[] bars, OrderSide side)
         {
-            Bar signalBar = GetSignalBar(bars);
-            return signalBar.Close;
+            // Use the TRADE instrument bar for pricing
+            Bar tradeBar = GetExecutionInstrumentBar(bars);
+            return tradeBar.Close;
         }
 
         private void CalculateStatistics()

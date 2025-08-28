@@ -61,6 +61,8 @@ namespace OpenQuant
             if (strategyManager is BaseStrategyManager baseManager)
             {
                 baseManager.SetTradeManager(tradeManager);
+
+
             }
 
             this.StrategyParameters = strategyManager.Parameters;
@@ -71,6 +73,7 @@ namespace OpenQuant
 
         protected override void OnStrategyStart()
         {
+            ValidateInstrumentConfiguration();
 
             // Detect mode based on number and type of instruments
             DetectTradingMode();
@@ -80,38 +83,118 @@ namespace OpenQuant
             if (strategyManager is BaseStrategyManager baseManager)
             {
                 baseManager.SetTradingMode(isPairMode, tradeInstrumentId);
-            }
-            strategyManager.OnStrategyStart();
 
-            Console.WriteLine($"Strategy {Name} started with {strategyManager.GetType().Name}");
-        }
-
-        private void DetectTradingMode()
-        {
-            var synthetics = Instruments.Where(i => i.Type == InstrumentType.Synthetic).ToList();
-
-            if (synthetics.Count > 0)
-            {
-                isPairMode = true;
-                // Order matters: [numerator, denominator, synthetic]
-                instrumentOrder = new int[] {
-                    numeratorInstrument.Id,
-                    denominatorInstrument.Id,
-                    syntheticInstrument.Id
-                    };
+                // NEW: Pass instrument order to strategy manager
+                baseManager.SetInstrumentOrder(instrumentOrder);
+                // UPDATED: Enhanced logging with new method names
+                //Console.WriteLine($"Strategy {Name} started with {strategyManager.GetType().Name}");
+                //Console.WriteLine($"Configuration: {baseManager.GetConfigurationDescription()}");
+                //Console.WriteLine($"Signal Source: {baseManager.GetSignalSourceDescription()}");
+                //Console.WriteLine($"Execution Instrument: {baseManager.GetExecutionInstrumentDescription()}");
             }
             else
             {
-                isPairMode = false;
+                Console.WriteLine($"Strategy {Name} started with {strategyManager.GetType().Name}");
+            }
 
-                foreach (Instrument i in Instruments)
+            strategyManager.OnStrategyStart();
+        }
+
+
+        private void DetectTradingMode()
+        {
+            try
+            {
+                var synthetics = Instruments.Where(i => i.Type == InstrumentType.Synthetic).ToList();
+
+                if (synthetics.Count > 0)
                 {
-                    Instrument = i;
+                    isPairMode = true;
+
+                    // Initialize instruments
+                    syntheticInstrument = synthetics.First();
+                    var nonSynthetics = Instruments.Where(i => i.Type != InstrumentType.Synthetic).ToList();
+
+                    if (nonSynthetics.Count >= 2)
+                    {
+                        numeratorInstrument = nonSynthetics[0];
+                        denominatorInstrument = nonSynthetics[1];
+
+                        Console.WriteLine($"Pairs mode detected:");
+                        Console.WriteLine($"  Numerator: {numeratorInstrument.Symbol} (ID: {numeratorInstrument.Id})");
+                        Console.WriteLine($"  Denominator: {denominatorInstrument.Symbol} (ID: {denominatorInstrument.Id})");
+                        Console.WriteLine($"  Synthetic: {syntheticInstrument.Symbol} (ID: {syntheticInstrument.Id})");
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException($"Pairs mode requires at least 2 non-synthetic instruments. Found {nonSynthetics.Count}");
+                    }
+
+                    instrumentOrder = new int[] {
+                numeratorInstrument.Id,
+                denominatorInstrument.Id,
+                syntheticInstrument.Id
+            };
+
+                    // UPDATED: Set trading instrument based on strategy configuration
+                    // For now, default to synthetic, but this should be configurable
+                    tradeInstrumentId = syntheticInstrument.Id;
+
+                    // NEW: Set the main Instrument field for backward compatibility
+                    Instrument = syntheticInstrument; // This prevents null reference in single-instrument code paths
+                }
+                else
+                {
+                    isPairMode = false;
+
+                    if (Instruments.Count() > 0)
+                    {
+                        Instrument = Instruments.First();
+                        Console.WriteLine($"Single instrument mode: {Instrument.Symbol} (ID: {Instrument.Id})");
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("No instruments configured");
+                    }
+
+                    instrumentOrder = new int[] { Instrument.Id };
+                    tradeInstrumentId = Instrument.Id;
                 }
 
-                instrumentOrder = new int[] { Instrument.Id };
+                Console.WriteLine($"Trading mode detection completed. Pair mode: {isPairMode}, Trading instrument ID: {tradeInstrumentId}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in DetectTradingMode: {ex.Message}");
+                Console.WriteLine($"Available instruments: {string.Join(", ", Instruments.Select(i => $"{i.Symbol}({i.Type})"))}");
+                throw;
             }
         }
+
+        // Add this method to MyStrategy class
+        private void ValidateInstrumentConfiguration()
+        {
+
+            Console.WriteLine($"Validating instrument configuration...");
+            Console.WriteLine($"Total instruments: {Instruments.Count()}");
+
+            foreach (var instrument in Instruments)
+            {
+                Console.WriteLine($"  - {instrument.Symbol}: Type={instrument.Type}, ID={instrument.Id}");
+            }
+
+            var synthetics = Instruments.Where(i => i.Type == InstrumentType.Synthetic).ToList();
+            var nonSynthetics = Instruments.Where(i => i.Type != InstrumentType.Synthetic).ToList();
+
+            Console.WriteLine($"Synthetic instruments: {synthetics.Count}");
+            Console.WriteLine($"Non-synthetic instruments: {nonSynthetics.Count}");
+
+            if (synthetics.Count > 0 && nonSynthetics.Count < 2)
+            {
+                Console.WriteLine("WARNING: Synthetic instrument found but insufficient non-synthetic instruments for pairs trading");
+            }
+        }
+
 
         protected override void OnStrategyStop()
         {
@@ -194,12 +277,87 @@ namespace OpenQuant
 
                 Console.WriteLine($"Reconciling positions: placing {side} order for {quantity} @ {price}");
 
-                // Create order to reconcile actual with theoretical
-                tradeManager.CreateOrder(side, quantity, price, Instrument);
+                // FIXED: Get the correct trading instrument
+                Instrument tradingInstrument = GetTradingInstrument();
 
-                // Update display
-                displayParameters.OrderPrice = price;
-                displayParameters.OrderQty = quantity;
+                if (tradingInstrument != null)
+                {
+                    tradeManager.CreateOrder(side, quantity, price, tradingInstrument);
+
+                    // Update display
+                    displayParameters.OrderPrice = price;
+                    displayParameters.OrderQty = quantity;
+                }
+                else
+                {
+                    Console.WriteLine("ERROR: Cannot reconcile positions - trading instrument is null");
+                }
+            }
+        }
+
+        private Instrument GetTradingInstrument()
+        {
+            try
+            {
+                if (!isPairMode)
+                {
+                    return Instrument;
+                }
+                else
+                {
+                    // UPDATED: Get execution instrument ID from strategy manager
+                    int targetExecutionInstrumentId = 0;
+
+                    if (strategyManager is BaseStrategyManager baseManager)
+                    {
+                        targetExecutionInstrumentId = baseManager.GetExecutionInstrumentId(); // NEW METHOD NAME
+                    }
+                    else
+                    {
+                        // Fallback to original logic
+                        targetExecutionInstrumentId = tradeInstrumentId;
+                    }
+
+                    if (targetExecutionInstrumentId == 0)
+                    {
+                        Console.WriteLine("Warning: Execution instrument ID not set, defaulting to synthetic");
+                        return syntheticInstrument;
+                    }
+
+                    // Find the instrument that matches the execution instrument ID
+                    if (numeratorInstrument?.Id == targetExecutionInstrumentId)
+                    {
+                        Console.WriteLine($"Execution instrument: {numeratorInstrument.Symbol} (Numerator)");
+                        return numeratorInstrument;
+                    }
+                    else if (denominatorInstrument?.Id == targetExecutionInstrumentId)
+                    {
+                        Console.WriteLine($"Execution instrument: {denominatorInstrument.Symbol} (Denominator)");
+                        return denominatorInstrument;
+                    }
+                    else if (syntheticInstrument?.Id == targetExecutionInstrumentId)
+                    {
+                        Console.WriteLine($"Execution instrument: {syntheticInstrument.Symbol} (Synthetic)");
+                        return syntheticInstrument;
+                    }
+                    else
+                    {
+                        var matchingInstrument = Instruments.FirstOrDefault(i => i.Id == targetExecutionInstrumentId);
+                        if (matchingInstrument != null)
+                        {
+                            Console.WriteLine($"Execution instrument: {matchingInstrument.Symbol} (Found by ID)");
+                            return matchingInstrument;
+                        }
+
+                        Console.WriteLine($"Warning: Could not find execution instrument with ID {targetExecutionInstrumentId}, using synthetic");
+                        return syntheticInstrument;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in GetTradingInstrument: {ex.Message}");
+                return null;
             }
         }
 
