@@ -46,10 +46,15 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BarData.cs" />
+    <Compile Include="ISpreadExecutionManager.cs" />
+    <Compile Include="ISpreadHandler.cs" />
     <Compile Include="OrderFeed.cs" />
     <Compile Include="PriceFeed.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Setup.cs" />
+    <Compile Include="SpreadExecutionManager.cs" />
+    <Compile Include="SpreadExecutionModels.cs" />
+    <Compile Include="SpreadHandler.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Paramters\Parameters.csproj">
