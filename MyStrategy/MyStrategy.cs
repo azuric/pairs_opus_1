@@ -6,6 +6,7 @@ using StrategyManagement;
 using System.Linq;
 using System.Collections.Generic;
 using SmartQuant.Providers;
+using System.IO;
 
 namespace OpenQuant
 {
@@ -37,17 +38,38 @@ namespace OpenQuant
         private Instrument denominatorInstrument;
         private Instrument syntheticInstrument;
         private int tradeInstrumentId;  // Which instrument to actually trade
+        private string tradeInstrumentSymbol;
         private int[] instrumentOrder;
+
+        private DateTime currentDateTime;
+        private FileStream fs;
+
+        // Fixed: Added missing field declarations
+        private DateTime lastDayDateTime = DateTime.MinValue;
+        private bool isRealTime = false;
+        private Dictionary<int, Instrument> instrumentDict = new Dictionary<int, Instrument>();
+        private List<DateTime> dateList = new List<DateTime>();
+        private DateTime _now;
+        //private Bar[] barsToProcess;
 
         public Instrument Instrument { get; private set; }
 
         public MyStrategy(Framework framework, string name) : base(framework, name)
         {
+            // Initialize collections
+            instrumentDict = new Dictionary<int, Instrument>();
+            dateList = new List<DateTime>();
+            lastDayDateTime = DateTime.MinValue;
         }
 
         public MyStrategy(Framework framework, string name, IStrategyManager strategyManager)
             : base(framework, name)
         {
+            // Initialize collections
+            instrumentDict = new Dictionary<int, Instrument>();
+            dateList = new List<DateTime>();
+            lastDayDateTime = DateTime.MinValue;
+
             InitializeWithManager(strategyManager);
         }
 
@@ -61,8 +83,6 @@ namespace OpenQuant
             if (strategyManager is BaseStrategyManager baseManager)
             {
                 baseManager.SetTradeManager(tradeManager);
-
-
             }
 
             this.StrategyParameters = strategyManager.Parameters;
@@ -74,6 +94,14 @@ namespace OpenQuant
         protected override void OnStrategyStart()
         {
             ValidateInstrumentConfiguration();
+
+            // Initialize instrument dictionary
+            foreach (var instrument in Instruments)
+            {
+                instrumentDict[instrument.Id] = instrument;
+            }
+
+            //barsToProcess = new Bar[instrumentDict.Count];
 
             // Detect mode based on number and type of instruments
             DetectTradingMode();
@@ -99,7 +127,6 @@ namespace OpenQuant
 
             strategyManager.OnStrategyStart();
         }
-
 
         private void DetectTradingMode()
         {
@@ -131,14 +158,15 @@ namespace OpenQuant
                     }
 
                     instrumentOrder = new int[] {
-                numeratorInstrument.Id,
-                denominatorInstrument.Id,
-                syntheticInstrument.Id
-            };
+                        numeratorInstrument.Id,
+                        denominatorInstrument.Id,
+                        syntheticInstrument.Id
+                        };
 
                     // UPDATED: Set trading instrument based on strategy configuration
                     // For now, default to synthetic, but this should be configurable
                     tradeInstrumentId = syntheticInstrument.Id;
+                    tradeInstrumentSymbol = syntheticInstrument.Symbol;
 
                     // NEW: Set the main Instrument field for backward compatibility
                     Instrument = syntheticInstrument; // This prevents null reference in single-instrument code paths
@@ -159,6 +187,7 @@ namespace OpenQuant
 
                     instrumentOrder = new int[] { Instrument.Id };
                     tradeInstrumentId = Instrument.Id;
+                    tradeInstrumentSymbol = Instrument.Symbol;
                 }
 
                 Console.WriteLine($"Trading mode detection completed. Pair mode: {isPairMode}, Trading instrument ID: {tradeInstrumentId}");
@@ -174,7 +203,6 @@ namespace OpenQuant
         // Add this method to MyStrategy class
         private void ValidateInstrumentConfiguration()
         {
-
             Console.WriteLine($"Validating instrument configuration...");
             Console.WriteLine($"Total instruments: {Instruments.Count()}");
 
@@ -195,7 +223,6 @@ namespace OpenQuant
             }
         }
 
-
         protected override void OnStrategyStop()
         {
             strategyManager.OnStrategyStop();
@@ -204,11 +231,24 @@ namespace OpenQuant
 
         protected override void OnBar(Bar bar)
         {
+            _now = bar.CloseDateTime;
+            currentDateTime = bar.DateTime;
+            TimeSpan _barTime = bar.DateTime.TimeOfDay;
+
             // Store latest bar for this instrument
             latestBars[bar.InstrumentId] = bar;
 
+            Instrument instrument = Instruments.GetById(bar.InstrumentId);
+
+            // Check for new day
+            if (bar.DateTime.Date > lastDayDateTime)
+            {
+                //NewDay(bar);
+                lastDayDateTime = bar.DateTime.Date;
+            }
+
             // Build array based on mode
-            Bar[] barsToProcess = BuildBarArray();
+            var barsToProcess = BuildBarArray();
 
             // Only process when we have all required bars
             if (barsToProcess != null)
@@ -228,7 +268,81 @@ namespace OpenQuant
 
                 // Check reconciliation
                 CheckAndReconcilePositions(barsToProcess);
+
             }
+        }
+
+        //// Fixed: Added missing NewDay method
+        //private void NewDay(Bar bar)
+        //{
+        //    Console.WriteLine($"New trading day: {bar.DateTime.Date}");
+        //    WriteDataForNewDay(bar.DateTime);
+
+        //    // Add any other new day initialization logic here
+        //    // For example, reset daily counters, logs, etc.
+        //}
+
+        //private void WriteDataForNewDay(DateTime datetime)
+        //{
+        //    if (!StrategyParameters.is_writing)
+        //        return;
+
+        //    string _fd = StrategyParameters.data_file + @"\Data\" + tradeInstrumentSymbol + @"_\";
+        //    Directory.CreateDirectory(Path.GetDirectoryName(_fd));
+
+        //    fs = new FileStream(_fd + "\\data_" + "_" + datetime.ToString("yyyyMMdd") + ".csv", FileMode.Append, FileAccess.Write, FileShare.Write);
+
+        //    StreamWriter _sw = new StreamWriter(fs);
+        //    {
+        //        // Fixed: Changed iManager to strategyManager and added null check
+        //        if (strategyManager != null && strategyManager is BaseStrategyManager baseManager)
+        //        {
+        //            // Note: You'll need to ensure historicAlphas exists in your BaseStrategyManager
+        //            // or replace this with the correct property/method
+        //            var historicAlphas = baseManager.GetHistoricAlphas(); // Assuming this method exists
+        //            for (int _i = 0; _i < historicAlphas.Count; _i++)
+        //                _sw.WriteLine(historicAlphas[_i]);
+        //        }
+        //        _sw.Close();
+        //    }
+        //}
+
+        // Fixed: Added proper return value and parameter
+        private bool ExcludeDates(Bar bar)
+        {
+            if (bar.DateTime.Date > lastDayDateTime)
+            {
+                //NewDay(bar);
+                lastDayDateTime = bar.DateTime.Date;
+            }
+
+            // Check if this date should be excluded
+            bool excludedDates = dateList.Contains(bar.DateTime.Date);
+            return excludedDates;
+        }
+
+        // Fixed: Added proper return value and fixed variable references
+        private bool HasProcessedSpread(Bar currentBar)
+        {
+            bool _canTrade = !isRealTime || (_now > currentDateTime);
+
+            if (currentBar.DateTime.Date > lastDayDateTime)
+            {
+                //NewDay(currentBar);
+                lastDayDateTime = currentBar.DateTime.Date;
+            }
+
+            bool excludedDates = false;
+            if (dateList.Contains(currentBar.DateTime.Date))
+                excludedDates = true;
+
+            bool _hasProcessedSpread = false;
+            if (instrumentDict.ContainsKey(currentBar.InstrumentId))
+            {
+                _hasProcessedSpread = instrumentDict[currentBar.InstrumentId].Type == InstrumentType.Synthetic;
+            }
+
+            return _hasProcessedSpread;
         }
 
         private Bar[] BuildBarArray()
@@ -252,6 +366,7 @@ namespace OpenQuant
             if (isPairMode)
             {
                 var times = result.Select(b => b.DateTime.Minute).Distinct();
+
                 if (times.Count() > 1)
                 {
                     // Bars from different minutes - wait for sync

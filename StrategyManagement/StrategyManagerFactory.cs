@@ -18,6 +18,9 @@ namespace StrategyManagement
                 case "mean_reversion":
                     return new MeanReversionStrategyManager();
 
+                case "mom_pair":
+                    return new MomPairStrategyManager();
+
                 case "momentum":
                     return new MomentumStrategyManager();
 
@@ -50,13 +53,16 @@ namespace StrategyManagement
             // Try to determine from the name
             if (parameters.name != null)
             {
-                var nameLower = parameters.name.ToLowerInvariant();
+                var nameLower = parameters.strategy_type.ToLowerInvariant();
 
                 if (nameLower.Contains("mean") || nameLower.Contains("reversion"))
                     return "mean_reversion";
 
                 if (nameLower.Contains("momentum") || nameLower.Contains("trend"))
                     return "momentum";
+
+                if (nameLower.Contains("mom_pair"))
+                    return "mom_pair";
             }
 
             // Check if there's a strategy_type field in the parameters

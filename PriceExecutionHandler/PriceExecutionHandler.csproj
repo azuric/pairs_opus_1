@@ -46,9 +46,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BarData.cs" />
+    <Compile Include="IOrderFeedAdapter.cs" />
     <Compile Include="ISpreadExecutionManager.cs" />
     <Compile Include="ISpreadHandler.cs" />
     <Compile Include="OrderFeed.cs" />
+    <Compile Include="OrderFeedAdapter.cs" />
     <Compile Include="PriceFeed.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Setup.cs" />

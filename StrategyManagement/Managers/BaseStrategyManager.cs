@@ -37,6 +37,11 @@ namespace StrategyManagement
         /// </summary>
         public ITradeManager TradeManager { get; protected set; }
 
+        /// <summary>
+        /// Trade manager for order execution
+        /// </summary>
+        //public AlphaManager AlphaManager { get; protected set; }
+
         #endregion
 
         #region Trading Mode Properties
@@ -360,6 +365,11 @@ namespace StrategyManagement
                     return instrumentOrder[2]; // Default to synthetic
             }
         }
+
+        //public dobule[] GetHistoricalAlphas()
+        //{
+        //    return Alp
+        //}
 
         #endregion
 

@@ -30,6 +30,7 @@ namespace Parameters
         public bool is_writing { get; set; }
         public bool is_write_metrics { get; set; }
         public string metrics_file { get; set; }
+        public string data_file { get; set; }
 
         // Strategy-specific thresholds
         public double[][] threshold_entry { get; set; }
@@ -41,7 +42,6 @@ namespace Parameters
         public bool use_stop_loss { get; set; } = true;
         public bool use_take_profit { get; set; } = true;
         public Dictionary<string, object> additional_params { get; set; }
-
 
         // NEW: Add signal source selection for pairs trading
         /// <summary>
