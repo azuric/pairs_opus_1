@@ -245,7 +245,7 @@ namespace StrategyManagement
         /// </summary>
         /// <param name="bars">Array of bars</param>
         /// <returns>Bar from the configured execution instrument</returns>
-        protected Bar GetExecutionInstrumentBar(Bar[] bars)
+        public Bar GetExecutionInstrumentBar(Bar[] bars)
         {
             if (bars == null || bars.Length == 0)
             {
@@ -498,7 +498,7 @@ namespace StrategyManagement
             if (Parameters == null) return true; // No restrictions if no parameters
 
             var timeOfDay = currentTime.TimeOfDay;
-            return timeOfDay <= Parameters.entry_allowedUntil;
+            return timeOfDay >= Parameters.entry_time && timeOfDay <= Parameters.entry_allowedUntil;
         }
 
         /// <summary>

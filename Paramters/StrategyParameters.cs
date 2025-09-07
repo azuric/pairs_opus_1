@@ -23,6 +23,7 @@ namespace Parameters
         public TimeSpan end_calc_time { get; set; }
         public TimeSpan start_time { get; set; }
         public TimeSpan end_time { get; set; }
+        public TimeSpan entry_time { get; set; }
         public TimeSpan exit_time { get; set; }
         public TimeSpan entry_allowedUntil { get; set; }
 

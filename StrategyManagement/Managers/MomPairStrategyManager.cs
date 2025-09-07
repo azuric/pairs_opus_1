@@ -39,8 +39,6 @@ namespace StrategyManagement
         {
             base.Initialize(parameters); // This now handles both signal and trade configuration
 
-
-
             lookBackPeriod = (double)parameters.additional_params["lookBackPeriod"];
             alpha = 1.0 / lookBackPeriod;
             minimumThreshold = (double)parameters.additional_params["minimumThreshold"];
@@ -107,13 +105,22 @@ namespace StrategyManagement
         public override void ProcessBar(Bar[] bars, double accountValue)
         {
             Bar signalBar = GetSignalBar(bars);
-
             CancelCurrentOrder();
-
             int currentTheoPosition = GetCurrentTheoPosition();
 
-            // Check exits first
-            if (currentTheoPosition != 0)
+            if (Math.Abs(currentTheoPosition) > 1)
+                Console.WriteLine();
+
+            // CRITICAL FIX: Check forced exit time FIRST
+            if (currentTheoPosition != 0 && ShouldExitAllPositions(signalBar.DateTime) && !HasLiveOrder())
+            {
+                Console.WriteLine($"FORCED EXIT at {signalBar.DateTime}: Closing position {currentTheoPosition}");
+                ExecuteTheoreticalExit(bars, currentTheoPosition);
+                return;
+            }
+
+            // Check normal exits
+            else if (currentTheoPosition != 0 && !HasLiveOrder())
             {
                 if (ShouldExitPosition(bars, currentTheoPosition))
                 {
@@ -157,12 +164,13 @@ namespace StrategyManagement
             else if (Math.Abs(signal) > mad)
             {
                 mad = Math.Abs(signal);
-                }
-            
+            }
+
+            Bar tradeBar = GetExecutionInstrumentBar(bars);
 
             // Update metrics
-            DualPositionManager?.TheoPositionManager?.UpdateTradeMetric(signalBar);
-            DualPositionManager?.ActualPositionManager?.UpdateTradeMetric(signalBar);
+            DualPositionManager?.TheoPositionManager?.UpdateTradeMetric(tradeBar);
+            DualPositionManager?.ActualPositionManager?.UpdateTradeMetric(tradeBar);
         }
 
         private bool ShouldExitPosition(Bar[] bars, int currentPosition)
@@ -182,6 +190,10 @@ namespace StrategyManagement
 
             //if (pnlPercent < -stopLossPercent || pnlPercent > takeProfitPercent)
             //    return true;
+
+            if (Math.Abs(currentPosition) > 1)
+                Console.WriteLine();
+
 
             if (currentPosition > 0)
                 return signal < exitThreshold;

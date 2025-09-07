@@ -173,18 +173,18 @@ namespace StrategyManagement
 
         public void UpdateTradeMetric(Bar bar)
         {
-            LastPrice = bar.Close;
+            Bar signalBar = bar;
 
             if (CurrentPosition != 0 && currentTradeMetric != null)
             {
                 // Calculate unrealized PnL correctly
                 int positionSide = CurrentPosition > 0 ? 1 : -1;
                 UnrealizedPnL = Math.Abs(CurrentPosition) *
-                               (positionSide * (bar.Close - AveragePrice)) *
+                               (positionSide * (signalBar.Close - AveragePrice)) *
                                parameters.inst_factor;
 
                 // Update trade metric without passing side
-                currentTradeMetric.UpdatePrice(bar.Close, bar.DateTime);
+                currentTradeMetric.UpdatePrice(signalBar.Close, signalBar.DateTime);
             }
             else
             {

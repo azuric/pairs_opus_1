@@ -263,9 +263,6 @@ namespace OpenQuant
 
                 strategyManager.OnBar(barsToProcess);
 
-                // Update metrics using the appropriate bar
-                DualPositionManager?.UpdateMetrics(isPairMode ? barsToProcess[2] : barsToProcess[0]);
-
                 // Check reconciliation
                 CheckAndReconcilePositions(barsToProcess);
 
