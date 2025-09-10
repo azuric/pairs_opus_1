@@ -46,10 +46,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DualPositionManager.cs" />
+    <Compile Include="Helper\Level.cs" />
     <Compile Include="Interfaces\IPositionManager.cs" />
     <Compile Include="Interfaces\IStrategyManager.cs" />
     <Compile Include="Interfaces\ITradeManager.cs" />
     <Compile Include="Managers\BaseStrategyManager.cs" />
+    <Compile Include="Managers\MomPairUSStrategyManager.cs" />
     <Compile Include="Managers\MomPairStrategyManager.cs" />
     <Compile Include="Managers\MeanReversionStrategyManager.cs" />
     <Compile Include="Managers\MomentumStrategyManager.cs" />

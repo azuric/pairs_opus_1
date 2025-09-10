@@ -21,6 +21,9 @@ namespace StrategyManagement
                 case "mom_pair":
                     return new MomPairStrategyManager();
 
+                case "mom_pair_us":
+                    return new MomPairUSStrategyManager();
+
                 case "momentum":
                     return new MomentumStrategyManager();
 
@@ -61,8 +64,13 @@ namespace StrategyManagement
                 if (nameLower.Contains("momentum") || nameLower.Contains("trend"))
                     return "momentum";
 
+                if (nameLower.Contains("mom_pair_us"))
+                    return "mom_pair_us";
+
                 if (nameLower.Contains("mom_pair"))
                     return "mom_pair";
+
+
             }
 
             // Check if there's a strategy_type field in the parameters
