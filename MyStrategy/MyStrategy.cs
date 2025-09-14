@@ -264,7 +264,8 @@ namespace OpenQuant
                 strategyManager.OnBar(barsToProcess);
 
                 // Check reconciliation
-                CheckAndReconcilePositions(barsToProcess);
+                if(StrategyParameters.useCheckAndReconcile) 
+                    CheckAndReconcilePositions(barsToProcess);
 
             }
         }

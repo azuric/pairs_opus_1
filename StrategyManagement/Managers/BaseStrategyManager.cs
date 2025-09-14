@@ -61,6 +61,11 @@ namespace StrategyManagement
         /// </summary>
         protected int[] instrumentOrder;
 
+        /// <summary>
+        /// Trade Instrument
+        /// </summary>
+        protected Instrument TradeInstrument;
+
         #endregion
 
         #region Signal and Execution Configuration
@@ -79,9 +84,12 @@ namespace StrategyManagement
 
         #region Constructor
 
-        protected BaseStrategyManager(string name)
+        protected BaseStrategyManager(string name, Instrument tradeInstrument)
         {
             Name = name ?? throw new ArgumentNullException(nameof(name));
+
+            TradeInstrument = tradeInstrument;
+
         }
 
         #endregion

@@ -19,7 +19,7 @@ namespace StrategyManagement
         private double takeProfitPercent;
         private bool isStatisticsReady;
 
-        public MeanReversionStrategyManager() : base("MeanReversion")
+        public MeanReversionStrategyManager(Instrument tradeInstrument) : base("MeanReversion", tradeInstrument)
         {
             priceWindow = new Queue<double>();
             isStatisticsReady = false;

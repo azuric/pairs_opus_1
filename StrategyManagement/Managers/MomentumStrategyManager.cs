@@ -16,7 +16,7 @@ namespace StrategyManagement
         private double stopLossPercent;
         private double takeProfitPercent;
 
-        public MomentumStrategyManager() : base("Momentum")
+        public MomentumStrategyManager(Instrument tradeInstrument) : base("Momentum", tradeInstrument)
         {
             barHistory = new Queue<Bar>();
         }

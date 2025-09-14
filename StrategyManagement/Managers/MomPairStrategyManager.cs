@@ -29,7 +29,7 @@ namespace StrategyManagement
 
         private DateTime currentDate;
 
-        public MomPairStrategyManager() : base("MomPairReversion")
+        public MomPairStrategyManager(Instrument tradeInstrument) : base("MomPairReversion", tradeInstrument)
         {
             isStatisticsReady = false;
             currentDate = new DateTime();
