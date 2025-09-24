@@ -27,7 +27,7 @@ namespace StrategyManagement
         /// <summary>
         /// Create and send an order
         /// </summary>
-        void CreateOrder(OrderSide side, double quantity, double price, Instrument instrument);
+        int CreateOrder(OrderSide side, double quantity, double price, Instrument instrument);
 
         /// <summary>
         /// Cancel an order

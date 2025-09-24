@@ -38,12 +38,14 @@ namespace Parameters
         public double[][] threshold_exit { get; set; }
 
         // Additional parameters for enhanced strategies
+        public int position_size { get; set; } = 1;
         public int max_position_size { get; set; } = 1;
         public int position_size { get; set; } = 1;
         public double risk_per_trade { get; set; } = 0.02; // 2% risk per trade
         public bool use_stop_loss { get; set; } = true;
         public bool use_take_profit { get; set; } = true;
         public Dictionary<string, object> additional_params { get; set; }
+        public bool useCheckAndReconcile { get; set; } = true;  
 
         // NEW: Add signal source selection for pairs trading
         /// <summary>

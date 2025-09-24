@@ -9,7 +9,7 @@ namespace StrategyManagement
         private bool shouldEnter;
         private int barCount;
 
-        public SimpleStrategyManager() : base("Simple")
+        public SimpleStrategyManager(Instrument tradeInstrument) : base("Simple", tradeInstrument)
         {
             shouldEnter = true;
             barCount = 0;

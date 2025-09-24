@@ -227,7 +227,7 @@ namespace OpenQuant
             }
 
             // Create strategy manager
-            IStrategyManager strategyManager = StrategyManagerFactory.CreateAndInitialize(parameters);
+            IStrategyManager strategyManager = StrategyManagerFactory.CreateAndInitialize(parameters, instrument);
 
             // Create strategy
             MyStrategy strategy = new MyStrategy(framework, parameters.name, strategyManager);
@@ -273,8 +273,22 @@ namespace OpenQuant
             if (synthInstrument == null)
                 throw new ArgumentException($"Synthetic instrument {parameters.trade_instrument} not found in InstrumentManager");
 
+            Instrument inst = synthInstrument;
+
+            switch (parameters.execution_instrument)
+            {
+                case "num":
+                    inst = numInstrument;
+                    return;
+
+                case "den":
+                    inst = denInstrument;
+                    return;
+
+            }
+
             // Create strategy manager
-            IStrategyManager strategyManager = StrategyManagerFactory.CreateAndInitialize(parameters);
+            IStrategyManager strategyManager = StrategyManagerFactory.CreateAndInitialize(parameters, inst);
 
             // Create strategy
             MyStrategy strategy = new MyStrategy(framework, parameters.name, strategyManager);

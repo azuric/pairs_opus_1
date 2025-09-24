@@ -39,11 +39,12 @@ namespace StrategyManagement
         private double lookBackPeriod;
         private double dailyMad;
         private double mad;
+        private int positionSize;
 
         private DateTime currentDate;
         private double closeAtNine;
 
-        public MomPairUSStrategyManager() : base("MomPairUSReversion")
+        public MomPairUSStrategyManager(Instrument tradeInstrument) : base("MomPairUSReversion", tradeInstrument)
         {
             isStatisticsReady = false;
             currentDate = new DateTime();
@@ -68,6 +69,7 @@ namespace StrategyManagement
 
             entryThreshold = (double)parameters.threshold_entry[0][0];
             exitThreshold = (double)parameters.threshold_exit[0][0];
+            positionSize = (int)parameters.position_size;
 
             // Existing parameter initialization...
             //lookbackPeriod = 120;
@@ -190,8 +192,6 @@ namespace StrategyManagement
                 OvernightBps = (OpenAtOne - closeAtNine) / closeAtNine;
             }
 
-            //if(signal < 0)
-            //    Console.WriteLine( );
             if (signalBar.CloseDateTime.Date != currentDate)
             {
                 dailyMad = mad;
@@ -204,7 +204,6 @@ namespace StrategyManagement
             {
                 mad = Math.Abs(signal);
             }
-
 
             // Update metrics
             DualPositionManager?.TheoPositionManager?.UpdateTradeMetric(tradeBar);

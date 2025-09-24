@@ -25,13 +25,20 @@ namespace StrategyManagement
             Reset();
         }
 
-        public void CreateOrder(OrderSide side, double quantity, double price, Instrument instrument)
+        public int CreateOrder(OrderSide side, double quantity, double price, Instrument instrument)
         {
             if (instrument == null)
+            {
+                //return -1;
                 throw new ArgumentNullException(nameof(instrument));
+            }
 
             if (quantity <= 0)
+            {
+                //return -1;
                 throw new ArgumentException("Quantity must be positive", nameof(quantity));
+                
+            }
 
             lock (lockObject)
             {
@@ -55,6 +62,7 @@ namespace StrategyManagement
                 HasLiveOrder = true;
 
                 Console.WriteLine($"Created order {order.Id}: {side} {quantity} @ {price}");
+                return order.Id;
             }
         }
 

@@ -1,5 +1,6 @@
 ﻿using System;
 using Parameters;
+using SmartQuant;
 
 namespace StrategyManagement
 {
@@ -8,7 +9,7 @@ namespace StrategyManagement
     /// </summary>
     public static class StrategyManagerFactory
     {
-        public static IStrategyManager CreateStrategyManager(string strategyType)
+        public static IStrategyManager CreateStrategyManager(string strategyType, Instrument tradeInstrument)
         {
             if (string.IsNullOrWhiteSpace(strategyType))
                 throw new ArgumentException("Strategy type cannot be null or empty", nameof(strategyType));
@@ -16,30 +17,33 @@ namespace StrategyManagement
             switch (strategyType.ToLowerInvariant())
             {
                 case "mean_reversion":
-                    return new MeanReversionStrategyManager();
+                    return new MeanReversionStrategyManager(tradeInstrument);
 
                 case "mom_pair":
-                    return new MomPairStrategyManager();
+                    return new MomPairStrategyManager(tradeInstrument);
 
                 case "mom_pair_us":
-                    return new MomPairUSStrategyManager();
+                    return new MomPairUSStrategyManager(tradeInstrument);
 
                 case "momentum":
-                    return new MomentumStrategyManager();
+                    return new MomentumStrategyManager(tradeInstrument);
+
+                case "multilevel":
+                    return new MomentumMultiLevelStrategyManager(tradeInstrument);
 
                 case "multilevel":
                     return new MomentumMultiLevelStrategyManager();
 
                 case "simple":
                 case "default":
-                    return new SimpleStrategyManager();
+                    return new SimpleStrategyManager(tradeInstrument);
 
                 default:
                     throw new NotSupportedException($"Strategy type '{strategyType}' is not supported");
             }
         }
 
-        public static IStrategyManager CreateAndInitialize(StrategyParameters parameters)
+        public static IStrategyManager CreateAndInitialize(StrategyParameters parameters, Instrument tradeInstrument)
         {
             if (parameters == null)
                 throw new ArgumentNullException(nameof(parameters));
@@ -48,7 +52,7 @@ namespace StrategyManagement
             // This could come from a specific field in the JSON or be inferred from the name
             string strategyType = DetermineStrategyType(parameters);
 
-            var manager = CreateStrategyManager(strategyType);
+            var manager = CreateStrategyManager(strategyType, tradeInstrument);
             manager.Initialize(parameters);
 
             return manager;
