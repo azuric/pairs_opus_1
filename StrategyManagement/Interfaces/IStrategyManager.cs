@@ -17,7 +17,7 @@ public interface IStrategyManager
     void SetTradingMode(bool isPairMode, int tradeInstrumentId);
 
     // Main processing - now takes array of bars
-    void ProcessBar(Bar[] bars, double accountValue);
+    void ProcessBar(Bar[] bars);
 
     // Market data events
     void OnBar(Bar[] bars);
@@ -39,8 +39,4 @@ public interface IStrategyManager
     bool ShouldExitLongPosition(Bar[] bars);
     bool ShouldExitShortPosition(Bar[] bars);
 
-    // Position and pricing
-    int CalculatePositionSize(Bar[] bars, double accountValue);
-    double GetEntryPrice(Bar[] bars, OrderSide side);
-    double GetExitPrice(Bar[] bars, OrderSide side);
 }

@@ -102,7 +102,7 @@ namespace StrategyManagement
             }
         }
 
-        public override void ProcessBar(Bar[] bars, double accountValue)
+        public override void ProcessBar(Bar[] bars)
         {
             Bar signalBar = GetSignalBar(bars);
             CancelCurrentOrder();
@@ -134,11 +134,11 @@ namespace StrategyManagement
             {
                 if (ShouldEnterLongPosition(bars))
                 {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Buy, accountValue);
+                    ExecuteTheoreticalEntry(bars, OrderSide.Buy);
                 }
                 else if (ShouldEnterShortPosition(bars))
                 {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Sell, accountValue);
+                    ExecuteTheoreticalEntry(bars, OrderSide.Sell);
                 }
             }
         }
@@ -237,30 +237,6 @@ namespace StrategyManagement
         {
             int pos = GetCurrentTheoPosition();
             return pos < 0 && ShouldExitPosition(bars, pos);
-        }
-
-        public override int CalculatePositionSize(Bar[] bars, double accountValue)
-        {
-            return Parameters?.max_position_size ?? 1;
-        }
-
-        public override double GetEntryPrice(Bar[] bars, OrderSide side)
-        {
-            // Use the TRADE instrument bar for pricing, not the signal bar
-
-            Bar tradeBar = GetExecutionInstrumentBar(bars);
-
-            if (side == OrderSide.Buy)
-                return tradeBar.Close;
-            else
-                return tradeBar.Close;
-        }
-
-        public override double GetExitPrice(Bar[] bars, OrderSide side)
-        {
-            // Use the TRADE instrument bar for pricing
-            Bar tradeBar = GetExecutionInstrumentBar(bars);
-            return tradeBar.Close;
         }
 
         private double CalculateUnrealizedPnLPercent(double currentPrice)

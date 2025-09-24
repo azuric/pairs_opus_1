@@ -259,7 +259,7 @@ namespace OpenQuant
                 UpdateDisplayParameters(bar);
 
                 // Pass array to strategy manager
-                strategyManager.ProcessBar(barsToProcess, accountValue);
+                strategyManager.ProcessBar(barsToProcess);
 
                 strategyManager.OnBar(barsToProcess);
 
@@ -385,12 +385,13 @@ namespace OpenQuant
             {
                 OrderSide side = discrepancy > 0 ? OrderSide.Buy : OrderSide.Sell;
                 int quantity = Math.Abs(discrepancy);
-                double price = strategyManager.GetEntryPrice(bars, side);
-
-                Console.WriteLine($"Reconciling positions: placing {side} order for {quantity} @ {price}");
 
                 // FIXED: Get the correct trading instrument
                 Instrument tradingInstrument = GetTradingInstrument();
+
+                var price = tradingInstrument.Bar.Close;
+
+                Console.WriteLine($"Reconciling positions: placing {side} order for {quantity} @ {price}");
 
                 if (tradingInstrument != null)
                 {

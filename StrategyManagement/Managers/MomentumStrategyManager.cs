@@ -46,7 +46,7 @@ namespace StrategyManagement
             }
         }
 
-        public override void ProcessBar(Bar[] bars, double accountValue)
+        public override void ProcessBar(Bar[] bars)
         {
             Bar signalBar = GetSignalBar(bars);
 
@@ -67,11 +67,11 @@ namespace StrategyManagement
             {
                 if (ShouldEnterLongPosition(bars))
                 {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Buy, accountValue);
+                    ExecuteTheoreticalEntry(bars, OrderSide.Buy);
                 }
                 else if (ShouldEnterShortPosition(bars))
                 {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Sell, accountValue);
+                    ExecuteTheoreticalEntry(bars, OrderSide.Sell);
                 }
             }
         }
@@ -154,29 +154,6 @@ namespace StrategyManagement
         public override bool ShouldExitShortPosition(Bar[] bars)
         {
             return GetCurrentTheoPosition() < 0 && ShouldExitPosition(bars);
-        }
-
-        public override int CalculatePositionSize(Bar[] bars, double accountValue)
-        {
-            double momentumStrength = Math.Abs(currentMomentum);
-            int baseSize = 1;
-
-            if (momentumStrength > entryMomentumThreshold * 2)
-                return baseSize * 3;
-            else if (momentumStrength > entryMomentumThreshold * 1.5)
-                return baseSize * 2;
-            else
-                return baseSize;
-        }
-
-        public override double GetEntryPrice(Bar[] bars, OrderSide side)
-        {
-            return GetSignalBar(bars).Close;
-        }
-
-        public override double GetExitPrice(Bar[] bars, OrderSide side)
-        {
-            return GetSignalBar(bars).Close;
         }
 
         private void CalculateMomentum()

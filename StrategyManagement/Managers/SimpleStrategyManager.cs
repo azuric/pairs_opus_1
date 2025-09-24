@@ -15,14 +15,14 @@ namespace StrategyManagement
             barCount = 0;
         }
 
-        public override void ProcessBar(Bar[] bars, double accountValue)
+        public override void ProcessBar(Bar[] bars)
         {
             // Simple strategy just maintains a position
             int currentTheoPosition = GetCurrentTheoPosition();
 
             if (currentTheoPosition == 0 && shouldEnter && !HasLiveOrder())
             {
-                ExecuteTheoreticalEntry(bars, OrderSide.Buy, accountValue);
+                ExecuteTheoreticalEntry(bars, OrderSide.Buy);
             }
             else if (ShouldExitAllPositions(GetSignalBar(bars).DateTime) && currentTheoPosition != 0)
             {
@@ -70,19 +70,5 @@ namespace StrategyManagement
             return false;
         }
 
-        public override int CalculatePositionSize(Bar[] bars, double accountValue)
-        {
-            return 1;
-        }
-
-        public override double GetEntryPrice(Bar[] bars, OrderSide side)
-        {
-            return GetSignalBar(bars).Close;
-        }
-
-        public override double GetExitPrice(Bar[] bars, OrderSide side)
-        {
-            return GetSignalBar(bars).Close;
-        }
     }
 }

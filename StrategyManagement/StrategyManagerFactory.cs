@@ -27,6 +27,9 @@ namespace StrategyManagement
                 case "momentum":
                     return new MomentumStrategyManager();
 
+                case "multilevel":
+                    return new MomentumMultiLevelStrategyManager();
+
                 case "simple":
                 case "default":
                     return new SimpleStrategyManager();
@@ -69,6 +72,9 @@ namespace StrategyManagement
 
                 if (nameLower.Contains("mom_pair"))
                     return "mom_pair";
+
+                if (nameLower.Contains("multilevel") || nameLower.Contains("multi_level"))
+                    return "multilevel";
 
 
             }

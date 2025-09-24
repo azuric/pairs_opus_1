@@ -61,6 +61,11 @@ namespace StrategyManagement
         /// </summary>
         protected int[] instrumentOrder;
 
+        /// <summary>
+        /// Position Size
+        /// </summary>
+        protected int positionSize;
+
         #endregion
 
         #region Signal and Execution Configuration
@@ -82,6 +87,7 @@ namespace StrategyManagement
         protected BaseStrategyManager(string name)
         {
             Name = name ?? throw new ArgumentNullException(nameof(name));
+            
         }
 
         #endregion
@@ -96,7 +102,7 @@ namespace StrategyManagement
         {
             Parameters = parameters ?? throw new ArgumentNullException(nameof(parameters));
             DualPositionManager = new DualPositionManager(parameters, Name);
-
+            positionSize = (int)parameters.position_size;
             // Parse signal source and execution instrument configuration
             ParseSignalAndExecutionConfiguration(parameters);
 
@@ -524,13 +530,15 @@ namespace StrategyManagement
         /// <param name="bars">Current bars</param>
         /// <param name="side">Order side</param>
         /// <param name="accountValue">Current account value</param>
-        protected void ExecuteTheoreticalEntry(Bar[] bars, OrderSide side, double accountValue)
+        protected void ExecuteTheoreticalEntry(Bar[] bars, OrderSide side)
         {
             try
             {
                 Bar signalBar = GetSignalBar(bars);
-                int positionSize = CalculatePositionSize(bars, accountValue);
-                double entryPrice = GetEntryPrice(bars, side);
+
+                Bar bar = GetExecutionInstrumentBar(bars);
+
+                double entryPrice = bar.Close;
 
                 DualPositionManager?.UpdateTheoPosition(signalBar.DateTime, side, positionSize, entryPrice);
 
@@ -555,7 +563,9 @@ namespace StrategyManagement
                 Bar signalBar = GetSignalBar(bars);
                 OrderSide exitSide = currentPosition > 0 ? OrderSide.Sell : OrderSide.Buy;
                 int exitSize = Math.Abs(currentPosition);
-                double exitPrice = GetExitPrice(bars, exitSide);
+
+                Bar bar = GetExecutionInstrumentBar(bars);  
+                double exitPrice = bar.Close;
 
                 DualPositionManager?.UpdateTheoPosition(signalBar.DateTime, exitSide, exitSize, exitPrice);
 
@@ -700,7 +710,7 @@ namespace StrategyManagement
         /// </summary>
         /// <param name="bars">Array of bars</param>
         /// <param name="accountValue">Current account value</param>
-        public abstract void ProcessBar(Bar[] bars, double accountValue);
+        public abstract void ProcessBar(Bar[] bars);
 
         /// <summary>
         /// Determine if should enter long position
@@ -729,30 +739,6 @@ namespace StrategyManagement
         /// <param name="bars">Array of bars</param>
         /// <returns>True if should exit short</returns>
         public abstract bool ShouldExitShortPosition(Bar[] bars);
-
-        /// <summary>
-        /// Calculate position size for new positions
-        /// </summary>
-        /// <param name="bars">Array of bars</param>
-        /// <param name="accountValue">Current account value</param>
-        /// <returns>Position size</returns>
-        public abstract int CalculatePositionSize(Bar[] bars, double accountValue);
-
-        /// <summary>
-        /// Get entry price for new positions (uses execution instrument bar for pricing)
-        /// </summary>
-        /// <param name="bars">Array of bars</param>
-        /// <param name="side">Order side</param>
-        /// <returns>Entry price</returns>
-        public abstract double GetEntryPrice(Bar[] bars, OrderSide side);
-
-        /// <summary>
-        /// Get exit price for closing positions (uses execution instrument bar for pricing)
-        /// </summary>
-        /// <param name="bars">Array of bars</param>
-        /// <param name="side">Order side</param>
-        /// <returns>Exit price</returns>
-        public abstract double GetExitPrice(Bar[] bars, OrderSide side);
 
         #endregion
     }
