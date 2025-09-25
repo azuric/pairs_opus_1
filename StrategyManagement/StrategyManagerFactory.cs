@@ -31,9 +31,6 @@ namespace StrategyManagement
                 case "multilevel":
                     return new MomentumMultiLevelStrategyManager(tradeInstrument);
 
-                case "multilevel":
-                    return new MomentumMultiLevelStrategyManager();
-
                 case "simple":
                 case "default":
                     return new SimpleStrategyManager(tradeInstrument);

@@ -38,7 +38,7 @@ namespace Parameters
         public double[][] threshold_exit { get; set; }
 
         // Additional parameters for enhanced strategies
-        public int position_size { get; set; } = 1;
+
         public int max_position_size { get; set; } = 1;
         public int position_size { get; set; } = 1;
         public double risk_per_trade { get; set; } = 0.02; // 2% risk per trade
