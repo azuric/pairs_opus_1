@@ -4,6 +4,8 @@ using System.Linq;
 using SmartQuant;
 using Parameters;
 using System.Threading;
+using System.Security.Cryptography;
+using SmartQuant.Statistics;
 
 namespace StrategyManagement
 {
@@ -29,7 +31,7 @@ namespace StrategyManagement
 
         private readonly Queue<Bar> barHistory;
         private LevelManager levelManager;
-        private int momentumPeriod;
+        private int lookbackPeriod;
         private double currentMomentum;
         private bool isMeanReverting;
         private int basePositionSize;
@@ -45,18 +47,22 @@ namespace StrategyManagement
         private int currentPosition;
         private double averageEntryPrice;
         private DateTime lastTradeTime;
+        private readonly Queue<double> priceWindow;
+        private double movingAverage;
+        private double signal;
 
         #endregion
 
         #region Constructor
 
-        public MomentumMultiLevelStrategyManager(Instrument tradeInstrument) : base("MultiLevel", tradeInstrument)
+        public MomentumMultiLevelStrategyManager(Instrument tradeInstrument) : base("multilevel", tradeInstrument)
         {
-            Name = "SimplifiedMomentumMultiLevel";
+            Name = "multilevel";
             this.tradeInstrument = tradeInstrument;
             barHistory = new Queue<Bar>();
             currentPosition = 0;
             averageEntryPrice = 0;
+
         }
 
         #endregion
@@ -65,17 +71,18 @@ namespace StrategyManagement
 
         public void Initialize(StrategyParameters parameters)
         {
-            Parameters = parameters ?? throw new ArgumentNullException(nameof(parameters));
+            base.Initialize(parameters);
+
+            // Parse configuration
+            ParseConfiguration();
 
             // Set default values
-            momentumPeriod = 10;
+            lookbackPeriod = 10;
             basePositionSize = (int)parameters.position_size;
             stopLossPercent = 0.02;
             takeProfitPercent = 0.05;
             isMeanReverting = false;
 
-            // Parse configuration
-            ParseConfiguration();
 
             // Initialize level manager
             levelManager = new LevelManager(entryLevels, exitLevels, isMeanReverting);
@@ -105,16 +112,41 @@ namespace StrategyManagement
 
         #region Main Processing - Clear Entry/Exit Logic
 
+        public override void OnBar(Bar[] bars)
+        {
+            Bar signalBar = GetSignalBar(bars);
+
+            barHistory.Enqueue(signalBar);
+            if (barHistory.Count > lookbackPeriod)
+            {
+                barHistory.Dequeue();
+            }
+
+            if (barHistory.Count >= lookbackPeriod)
+            {
+                UpdateMomentum(signalBar);
+                CalculateStatistics();
+            }
+
+            // If in pair mode, could also track constituent momentum
+            if (isPairMode && bars.Length > 2)
+            {
+                Bar numBar = GetNumeratorBar(bars);
+                Bar denBar = GetDenominatorBar(bars);
+                // Could track separate momentum for analysis
+            }
+        }
+
         public override void ProcessBar(Bar[] bars)
         {
             if (bars == null || bars.Length == 0) return;
 
-            Bar currentBar = bars[0]; // Simple - use first bar
+            Bar currentBar = GetSignalBar(bars);
 
             // Update momentum
             UpdateMomentum(currentBar);
 
-            if (barHistory.Count < momentumPeriod)
+            if (barHistory.Count < lookbackPeriod)
                 return;
 
             // Clear, explicit entry/exit logic - no abstraction
@@ -243,9 +275,6 @@ namespace StrategyManagement
         {
             try
             {
-                // Calculate position size - simple formula
-                int positionSize = CalculateSimplePositionSize(entryLevel);
-
                 // Create level
                 var level = levelManager.CreateLevel(entryLevel, side, positionSize,
                                                    bar.Close, currentMomentum, bar.DateTime);
@@ -373,7 +402,7 @@ namespace StrategyManagement
                 }
 
                 if (Parameters.additional_params.ContainsKey("momentum_period"))
-                    momentumPeriod = Convert.ToInt32(Parameters.additional_params["momentum_period"]);
+                    lookbackPeriod = Convert.ToInt32(Parameters.additional_params["momentum_period"]);
 
                 if (Parameters.additional_params.ContainsKey("is_mean_reverting"))
                     isMeanReverting = Convert.ToBoolean(Parameters.additional_params["is_mean_reverting"]);
@@ -390,7 +419,7 @@ namespace StrategyManagement
         private void UpdateMomentum(Bar bar)
         {
             barHistory.Enqueue(bar);
-            if (barHistory.Count > momentumPeriod)
+            if (barHistory.Count > lookbackPeriod)
                 barHistory.Dequeue();
 
             if (barHistory.Count >= 2)
@@ -401,11 +430,19 @@ namespace StrategyManagement
             }
         }
 
-        private int CalculateSimplePositionSize(double entryLevel)
+        private void CalculateStatistics()
         {
-            // Simple position sizing - no complex abstraction
-            double levelMultiplier = entryLevel / entryLevels.Max();
-            return Math.Max(1, (int)(basePositionSize * levelMultiplier));
+            if (priceWindow.Count == 0) return;
+
+            double sum = 0;
+            foreach (var price in priceWindow)
+                sum += price;
+            movingAverage = sum / priceWindow.Count;
+
+            //double sumSquaredDeviations = 0;
+            //foreach (var price in priceWindow)
+            //    sumSquaredDeviations += Math.Pow(price - movingAverage, 2);
+            //standardDeviation = Math.Sqrt(sumSquaredDeviations / priceWindow.Count);
         }
 
         private void UpdatePositionTracking(OrderSide side, int quantity, double price)
@@ -475,7 +512,7 @@ namespace StrategyManagement
         }
 
         // Simple market data handlers
-        public void OnBar(Bar[] bars) { }
+
         public void OnTrade(Trade trade) { }
         public void OnAsk(Ask ask) { }
         public void OnBid(Bid bid) { }

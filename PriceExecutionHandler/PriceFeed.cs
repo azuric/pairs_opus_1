@@ -302,6 +302,7 @@ namespace PriceExecutionHandler
         {
             // Skip processing for synthetic instruments themselves
             Instrument inst = InstrumentManager.GetById(bar_.InstrumentId);
+
             if (inst.Type == InstrumentType.Synthetic)
                 return;
 
