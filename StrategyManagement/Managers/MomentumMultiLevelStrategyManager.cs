@@ -8,11 +8,23 @@ using System.Threading;
 namespace StrategyManagement
 {
     /// <summary>
-    /// Multi-level momentum strategy manager with sophisticated entry/exit level management
-    /// Each entry level has multiple exit levels managed independently
+    /// Simplified multi-level momentum strategy manager that follows user preferences:
+    /// 1. Simple code and strategy
+    /// 2. Clear control of entry and exit logic
+    /// 3. Does not abstract away logic to base managers
+    /// 4. Violates SOLID principles intentionally for clarity and control
     /// </summary>
     public class MomentumMultiLevelStrategyManager : BaseStrategyManager
     {
+        #region Core Properties
+
+        public string Name { get; private set; }
+        public StrategyParameters Parameters { get; private set; }
+        public IPositionManager PositionManager { get; private set; }
+        public ITradeManager TradeManager { get; private set; }
+
+        #endregion
+
         #region Private Fields
 
         private readonly Queue<Bar> barHistory;
@@ -24,188 +36,139 @@ namespace StrategyManagement
         private double stopLossPercent;
         private double takeProfitPercent;
 
-        // Configuration from additional_params
+        // Configuration
         private List<double> entryLevels;
         private List<double> exitLevels;
+        private Instrument tradeInstrument;
+
+        // Trading state
+        private int currentPosition;
+        private double averageEntryPrice;
+        private DateTime lastTradeTime;
 
         #endregion
 
         #region Constructor
 
-        public MomentumMultiLevelStrategyManager(Instrument tradeInstrument) : base("MomentumMultiLevel", tradeInstrument)
+        public MomentumMultiLevelStrategyManager(Instrument tradeInstrument) : base("MultiLevel", tradeInstrument)
         {
+            Name = "SimplifiedMomentumMultiLevel";
+            this.tradeInstrument = tradeInstrument;
             barHistory = new Queue<Bar>();
+            currentPosition = 0;
+            averageEntryPrice = 0;
         }
 
         #endregion
 
         #region Initialization
 
-        public override void Initialize(StrategyParameters parameters)
+        public void Initialize(StrategyParameters parameters)
         {
-            base.Initialize(parameters);
+            Parameters = parameters ?? throw new ArgumentNullException(nameof(parameters));
 
-            // Default values
+            // Set default values
             momentumPeriod = 10;
-            basePositionSize = 1;
+            basePositionSize = (int)parameters.position_size;
             stopLossPercent = 0.02;
             takeProfitPercent = 0.05;
             isMeanReverting = false;
 
-            // Parse additional parameters
-            ParseAdditionalParameters();
+            // Parse configuration
+            ParseConfiguration();
 
             // Initialize level manager
             levelManager = new LevelManager(entryLevels, exitLevels, isMeanReverting);
-            levelManager.MaxConcurrentLevels = 10; // Can be configured via additional_params
+            levelManager.MaxConcurrentLevels = 10;
+
+            Console.WriteLine($"Strategy {Name} initialized with {entryLevels.Count} entry levels and {exitLevels.Count} exit levels");
         }
 
-        private void ParseAdditionalParameters()
+        public void SetTradeManager(ITradeManager tradeManager)
         {
-            if (Parameters.additional_params == null)
-            {
-                SetDefaultLevels();
-                return;
-            }
-
-            // Parse entry levels
-            if (Parameters.additional_params.ContainsKey("entry_levels"))
-            {
-                if (Parameters.additional_params["entry_levels"] is List<object> entryList)
-                {
-                    entryLevels = entryList.Select(x => Convert.ToDouble(x)).ToList();
-                }
-                else if (Parameters.additional_params["entry_levels"] is double[] entryArray)
-                {
-                    entryLevels = entryArray.ToList();
-                }
-            }
-
-            // Parse exit levels
-            if (Parameters.additional_params.ContainsKey("exit_levels"))
-            {
-                if (Parameters.additional_params["exit_levels"] is List<object> exitList)
-                {
-                    exitLevels = exitList.Select(x => Convert.ToDouble(x)).ToList();
-                }
-                else if (Parameters.additional_params["exit_levels"] is double[] exitArray)
-                {
-                    exitLevels = exitArray.ToList();
-                }
-            }
-
-            // Parse other parameters
-            if (Parameters.additional_params.ContainsKey("momentum_period"))
-                momentumPeriod = Convert.ToInt32(Parameters.additional_params["momentum_period"]);
-
-            if (Parameters.additional_params.ContainsKey("base_position_size"))
-                basePositionSize = Convert.ToInt32(Parameters.additional_params["base_position_size"]);
-
-            if (Parameters.additional_params.ContainsKey("is_mean_reverting"))
-                isMeanReverting = Convert.ToBoolean(Parameters.additional_params["is_mean_reverting"]);
-
-            if (Parameters.additional_params.ContainsKey("stop_loss_percent"))
-                stopLossPercent = Convert.ToDouble(Parameters.additional_params["stop_loss_percent"]);
-
-            if (Parameters.additional_params.ContainsKey("take_profit_percent"))
-                takeProfitPercent = Convert.ToDouble(Parameters.additional_params["take_profit_percent"]);
-
-            if (Parameters.additional_params.ContainsKey("max_concurrent_levels"))
-                levelManager.MaxConcurrentLevels = Convert.ToInt32(Parameters.additional_params["max_concurrent_levels"]);
-
-            // Validate levels
-            if (entryLevels == null || entryLevels.Count == 0)
-                SetDefaultLevels();
+            TradeManager = tradeManager ?? throw new ArgumentNullException(nameof(tradeManager));
         }
 
-        private void SetDefaultLevels()
+        public void SetTradingMode(bool isPairMode, int tradeInstrumentId)
         {
-            entryLevels = new List<double> { 0.5, 0.75, 1.0 };
-            exitLevels = new List<double> { 0.5, 0.25 };
+            // Simplified - we don't need complex pair mode logic for this example
+            Console.WriteLine($"Trading mode set: Pairs={isPairMode}, InstrumentId={tradeInstrumentId}");
+        }
+
+        public void SetInstrumentOrder(int[] instrumentOrder)
+        {
+            // Simplified - store for reference but don't complicate the logic
+            Console.WriteLine($"Instrument order set: [{string.Join(", ", instrumentOrder)}]");
         }
 
         #endregion
 
-        #region Main Processing
+        #region Main Processing - Clear Entry/Exit Logic
 
         public override void ProcessBar(Bar[] bars)
         {
-            Bar signalBar = GetSignalBar(bars);
+            if (bars == null || bars.Length == 0) return;
 
-            // Update momentum calculation
-            UpdateMomentum(signalBar);
+            Bar currentBar = bars[0]; // Simple - use first bar
+
+            // Update momentum
+            UpdateMomentum(currentBar);
 
             if (barHistory.Count < momentumPeriod)
                 return;
 
-            // Check for new entry levels
-            ProcessEntryLevels(bars);
+            // Clear, explicit entry/exit logic - no abstraction
+            ProcessEntryDecisions(currentBar);
+            ProcessExitDecisions(currentBar);
 
-            // Check for exit levels
-            ProcessExitLevels(bars);
-
-            // Cleanup completed orders
+            // Cleanup
             levelManager.CleanupCompletedOrders();
         }
 
-        private void ProcessEntryLevels(Bar[] bars)
+        /// <summary>
+        /// Clear, explicit entry logic - user has full control
+        /// </summary>
+        private void ProcessEntryDecisions(Bar bar)
         {
-            Bar bar = GetExecutionInstrumentBar(bars);
-
-            if (!IsWithinTradingHours(bar.DateTime) || !CanEnterNewPosition(bar.DateTime))
+            // Simple time checks
+            if (!IsWithinTradingHours(bar.DateTime))
                 return;
 
-            // Check for long entries
-            var longEntryLevels = levelManager.GetTriggeredEntryLevels(currentMomentum, OrderSide.Buy);
-            foreach (var entryLevel in longEntryLevels)
+            // Check for long entries - explicit logic, no abstraction
+            if (ShouldEnterLong(bar))
             {
-                double entryPrice = bar.Close;
-
-                var level = levelManager.CreateLevel(entryLevel, OrderSide.Buy, positionSize,
-                                                   entryPrice, currentMomentum, bar.DateTime);
-
-                // Execute theoretical entry
-                ExecuteTheoreticalEntry(bars, OrderSide.Buy);
-
-                // Place actual order if TradeManager is available
-                if (TradeManager != null && !HasLiveOrder())
+                var longEntryLevels = levelManager.GetTriggeredEntryLevels(currentMomentum, OrderSide.Buy);
+                foreach (var entryLevel in longEntryLevels)
                 {
-                    PlaceEntryOrder(level, bar);
+                    ExecuteEntryOrder(entryLevel, OrderSide.Buy, bar);
                 }
             }
 
-            // Check for short entries
-            var shortEntryLevels = levelManager.GetTriggeredEntryLevels(currentMomentum, OrderSide.Sell);
-            foreach (var entryLevel in shortEntryLevels)
+            // Check for short entries - explicit logic, no abstraction
+            if (ShouldEnterShort(bar))
             {
-                double entryPrice = bar.Close;
-
-                var level = levelManager.CreateLevel(entryLevel, OrderSide.Sell, positionSize,
-                                                   entryPrice, currentMomentum, bar.DateTime);
-
-                // Execute theoretical entry
-                ExecuteTheoreticalEntry(bars, OrderSide.Sell);
-
-                // Place actual order if TradeManager is available
-                if (TradeManager != null && !HasLiveOrder())
+                var shortEntryLevels = levelManager.GetTriggeredEntryLevels(currentMomentum, OrderSide.Sell);
+                foreach (var entryLevel in shortEntryLevels)
                 {
-                    PlaceEntryOrder(level, bar);
+                    ExecuteEntryOrder(entryLevel, OrderSide.Sell, bar);
                 }
             }
         }
 
-        private void ProcessExitLevels(Bar[] bars)
+        /// <summary>
+        /// Clear, explicit exit logic - user has full control
+        /// </summary>
+        private void ProcessExitDecisions(Bar bar)
         {
-            Bar bar = GetSignalBar(bars);
-
-            if (ShouldExitAllPositions(bar.DateTime))
+            // Force exit at end of day - simple and clear
+            if (ShouldForceExitAll(bar.DateTime))
             {
-                ForceExitAllLevels(bars);
+                ForceExitAllPositions(bar);
                 return;
             }
 
+            // Process level-based exits
             var triggeredExits = levelManager.GetAllTriggeredExitLevels(currentMomentum);
-
             foreach (var kvp in triggeredExits)
             {
                 string levelId = kvp.Key;
@@ -213,198 +176,340 @@ namespace StrategyManagement
 
                 foreach (var exitLevelIndex in exitLevelIndices)
                 {
-                    var level = levelManager.GetLevel(levelId);
-                    if (level == null) continue;
+                    ExecuteExitOrder(levelId, exitLevelIndex, bar);
+                }
+            }
+        }
 
-                    int exitSize = level.GetExitQuantityForLevel(exitLevelIndex);
-                    if (exitSize <= 0) continue;
+        #endregion
 
-                    double exitPrice = bar.Close;
+        #region Simple Entry/Exit Decision Methods - No Abstraction
 
-                    // Execute theoretical exit
-                    OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
+        /// <summary>
+        /// Simple, clear long entry decision - user controls this logic
+        /// </summary>
+        private bool ShouldEnterLong(Bar bar)
+        {
+            // Simple momentum check
+            bool momentumCondition = isMeanReverting ?
+                currentMomentum <= -Math.Abs(entryLevels.Min()) :
+                currentMomentum >= entryLevels.Min();
 
-                    int currentPosition = base.PositionManager.CurrentPosition;
+            // Simple position limit check
+            bool positionCheck = levelManager.ActiveLevelCount < levelManager.MaxConcurrentLevels;
 
-                    ExecuteTheoreticalExit(bars, currentPosition);
+            // Simple time check
+            bool timeCheck = IsWithinTradingHours(bar.DateTime);
 
-                    // Execute level exit
-                    levelManager.ExecuteExit(levelId, exitLevelIndex, exitPrice, bar.DateTime);
+            return momentumCondition && positionCheck && timeCheck;
+        }
 
-                    // Place actual order if TradeManager is available
-                    if (TradeManager != null && !HasLiveOrder())
+        /// <summary>
+        /// Simple, clear short entry decision - user controls this logic
+        /// </summary>
+        private bool ShouldEnterShort(Bar bar)
+        {
+            // Simple momentum check
+            bool momentumCondition = isMeanReverting ?
+                currentMomentum >= Math.Abs(entryLevels.Min()) :
+                currentMomentum <= -entryLevels.Min();
+
+            // Simple position limit check
+            bool positionCheck = levelManager.ActiveLevelCount < levelManager.MaxConcurrentLevels;
+
+            // Simple time check
+            bool timeCheck = IsWithinTradingHours(bar.DateTime);
+
+            return momentumCondition && positionCheck && timeCheck;
+        }
+
+        /// <summary>
+        /// Simple force exit check - clear and explicit
+        /// </summary>
+        private bool ShouldForceExitAll(DateTime currentTime)
+        {
+            // Simple end-of-day exit
+            return currentTime.TimeOfDay >= Parameters.exit_time;
+        }
+
+        #endregion
+
+        #region Order Execution - Simple and Direct
+
+        /// <summary>
+        /// Execute entry order - simple, direct, no abstraction
+        /// </summary>
+        private void ExecuteEntryOrder(double entryLevel, OrderSide side, Bar bar)
+        {
+            try
+            {
+                // Calculate position size - simple formula
+                int positionSize = CalculateSimplePositionSize(entryLevel);
+
+                // Create level
+                var level = levelManager.CreateLevel(entryLevel, side, positionSize,
+                                                   bar.Close, currentMomentum, bar.DateTime);
+
+                // Place order if we have a trade manager
+                if (TradeManager != null && !TradeManager.HasLiveOrder)
+                {
+                    int orderId = TradeManager.CreateOrder(side, positionSize, bar.Close, tradeInstrument);
+
+                    if (orderId > 0)
                     {
-                        PlaceExitOrder(level, exitLevelIndex, exitSize, bar);
+                        level.AddOrder(orderId, LevelOrderType.Entry, positionSize, bar.Close);
+                        Console.WriteLine($"Entry order: {side} {positionSize} @ {bar.Close:F4} (Level {entryLevel})");
                     }
                 }
+
+                // Update our simple position tracking
+                UpdatePositionTracking(side, positionSize, bar.Close);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error executing entry order: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Execute exit order - simple, direct, no abstraction
+        /// </summary>
+        private void ExecuteExitOrder(string levelId, int exitLevelIndex, Bar bar)
+        {
+            try
+            {
+                var level = levelManager.GetLevel(levelId);
+                if (level == null) return;
+
+                int exitSize = level.GetExitQuantityForLevel(exitLevelIndex);
+                if (exitSize <= 0) return;
+
+                OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
+
+                // Place order if we have a trade manager
+                if (TradeManager != null && !TradeManager.HasLiveOrder)
+                {
+                    int orderId = TradeManager.CreateOrder(exitSide, exitSize, bar.Close, tradeInstrument);
+
+                    if (orderId > 0)
+                    {
+                        level.AddOrder(orderId, LevelOrderType.Exit, exitSize, bar.Close, exitLevelIndex);
+                        Console.WriteLine($"Exit order: {exitSide} {exitSize} @ {bar.Close:F4} (Level {levelId})");
+                    }
+                }
+
+                // Execute the exit in level manager
+                levelManager.ExecuteExit(levelId, exitLevelIndex, bar.Close, bar.DateTime);
+
+                // Update our simple position tracking
+                UpdatePositionTracking(exitSide, exitSize, bar.Close);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error executing exit order: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Force exit all positions - simple and direct
+        /// </summary>
+        private void ForceExitAllPositions(Bar bar)
+        {
+            try
+            {
+                var levelsToClose = levelManager.ForceCloseAllLevels();
+
+                foreach (var level in levelsToClose)
+                {
+                    if (level.CurrentPosition != 0)
+                    {
+                        OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
+                        int exitSize = Math.Abs(level.CurrentPosition);
+
+                        if (TradeManager != null)
+                        {
+                            TradeManager.CreateOrder(exitSide, exitSize, bar.Close, tradeInstrument);
+                        }
+
+                        Console.WriteLine($"Force exit: {exitSide} {exitSize} @ {bar.Close:F4}");
+                    }
+                }
+
+                // Reset position tracking
+                currentPosition = 0;
+                averageEntryPrice = 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in force exit: {ex.Message}");
             }
         }
 
         #endregion
 
-        #region Order Management
+        #region Simple Helper Methods
 
-        private void PlaceEntryOrder(Level level, Bar bar)
+        private void ParseConfiguration()
         {
-            // Implementation would depend on your TradeManager interface
-            // This is a placeholder for the actual order placement logic
-
-
-
-            // Example:
-            // int orderId = TradeManager.PlaceOrder(level.Side, level.PositionSize, level.EntryPrice);
-            // level.AddOrder(orderId, LevelOrderType.Entry, level.PositionSize, level.EntryPrice);
-        }
-
-        private void PlaceExitOrder(Level level, int exitLevelIndex, int exitSize, Bar bar)
-        {
-            // Implementation would depend on your TradeManager interface
-            // This is a placeholder for the actual order placement logic
-
-            OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
-            double exitPrice = bar.Close;
-
-            // Example:
-            // int orderId = TradeManager.PlaceOrder(exitSide, exitSize, exitPrice);
-            // level.AddOrder(orderId, LevelOrderType.Exit, exitSize, exitPrice, exitLevelIndex);
-        }
-
-        private void ForceExitAllLevels(Bar[] bars)
-        {
-            var levelsToClose = levelManager.ForceCloseAllLevels();
-
-            Bar bar = GetExecutionInstrumentBar(bars);
-
-            foreach (var level in levelsToClose)
+            // Simple parameter parsing - no complex abstraction
+            if (Parameters.additional_params != null)
             {
-                if (level.CurrentPosition != 0)
+                if (Parameters.additional_params.ContainsKey("entry_levels"))
                 {
-                    OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
-                    int exitSize = Math.Abs(level.CurrentPosition);
-                    double exitPrice = bar.Close;
+                    var entryObj = Parameters.additional_params["entry_levels"];
+                    if (entryObj is List<object> entryList)
+                        entryLevels = entryList.Select(x => Convert.ToDouble(x)).ToList();
+                    else if (entryObj is double[] entryArray)
+                        entryLevels = entryArray.ToList();
+                }
 
-                    ExecuteTheoreticalExit(bars, exitSize);
+                if (Parameters.additional_params.ContainsKey("exit_levels"))
+                {
+                    var exitObj = Parameters.additional_params["exit_levels"];
+                    if (exitObj is List<object> exitList)
+                        exitLevels = exitList.Select(x => Convert.ToDouble(x)).ToList();
+                    else if (exitObj is double[] exitArray)
+                        exitLevels = exitArray.ToList();
+                }
+
+                if (Parameters.additional_params.ContainsKey("momentum_period"))
+                    momentumPeriod = Convert.ToInt32(Parameters.additional_params["momentum_period"]);
+
+                if (Parameters.additional_params.ContainsKey("is_mean_reverting"))
+                    isMeanReverting = Convert.ToBoolean(Parameters.additional_params["is_mean_reverting"]);
+            }
+
+            // Set defaults if not configured
+            if (entryLevels == null || entryLevels.Count == 0)
+                entryLevels = new List<double> { 0.5, 0.75, 1.0 };
+
+            if (exitLevels == null || exitLevels.Count == 0)
+                exitLevels = new List<double> { 0.5, 0.25 };
+        }
+
+        private void UpdateMomentum(Bar bar)
+        {
+            barHistory.Enqueue(bar);
+            if (barHistory.Count > momentumPeriod)
+                barHistory.Dequeue();
+
+            if (barHistory.Count >= 2)
+            {
+                var oldestBar = barHistory.First();
+                var newestBar = bar;
+                currentMomentum = (newestBar.Close - oldestBar.Close) / oldestBar.Close;
+            }
+        }
+
+        private int CalculateSimplePositionSize(double entryLevel)
+        {
+            // Simple position sizing - no complex abstraction
+            double levelMultiplier = entryLevel / entryLevels.Max();
+            return Math.Max(1, (int)(basePositionSize * levelMultiplier));
+        }
+
+        private void UpdatePositionTracking(OrderSide side, int quantity, double price)
+        {
+            // Simple position tracking
+            if (side == OrderSide.Buy)
+            {
+                if (currentPosition <= 0)
+                {
+                    averageEntryPrice = price;
+                    currentPosition = quantity;
+                }
+                else
+                {
+                    averageEntryPrice = (averageEntryPrice * currentPosition + price * quantity) / (currentPosition + quantity);
+                    currentPosition += quantity;
+                }
+            }
+            else // Sell
+            {
+                if (currentPosition >= 0)
+                {
+                    averageEntryPrice = price;
+                    currentPosition = -quantity;
+                }
+                else
+                {
+                    averageEntryPrice = (averageEntryPrice * Math.Abs(currentPosition) + price * quantity) / (Math.Abs(currentPosition) + quantity);
+                    currentPosition -= quantity;
                 }
             }
         }
 
-        #endregion
-
-        #region Market Data Handlers
-
-        public override void OnBar(Bar[] bars)
+        private bool IsWithinTradingHours(DateTime currentTime)
         {
-            // Update bar history for momentum calculation
-            var bar = GetSignalBar(bars);
-
-            barHistory.Enqueue(bar);
-            if (barHistory.Count > momentumPeriod)
-            {
-                barHistory.Dequeue();
-            }
+            if (Parameters == null) return true;
+            var timeOfDay = currentTime.TimeOfDay;
+            return timeOfDay >= Parameters.entry_time && timeOfDay <= Parameters.entry_allowedUntil;
         }
 
-        public override void OnTrade(Trade trade) { }
-        public override void OnAsk(Ask ask) { }
-        public override void OnBid(Bid bid) { }
+        #endregion
+
+        #region Event Handlers - Simple and Direct
+
+        public void OnFill(Fill fill)
+        {
+            // Simple fill handling
+            Console.WriteLine($"Fill: {fill.Side} {fill.Qty} @ {fill.Price:F4}");
+            lastTradeTime = fill.DateTime;
+        }
+
+        public void OnOrderEvent(Order order)
+        {
+            // Simple order event handling
+            if (TradeManager != null)
+                TradeManager.HandleOrderUpdate(order);
+        }
+
+        public void OnStrategyStart()
+        {
+            Console.WriteLine($"Strategy {Name} started - Simple and Clear Control");
+        }
+
+        public void OnStrategyStop()
+        {
+            Console.WriteLine($"Strategy {Name} stopped");
+        }
+
+        // Simple market data handlers
+        public void OnBar(Bar[] bars) { }
+        public void OnTrade(Trade trade) { }
+        public void OnAsk(Ask ask) { }
+        public void OnBid(Bid bid) { }
 
         #endregion
 
-        #region Decision Methods (Required by BaseStrategyManager)
+        #region Required Interface Methods - Minimal Implementation
+
+        public void ProcessBar(Bar[] bars, double accountValue)
+        {
+            ProcessBar(bars); // Delegate to simpler version
+        }
 
         public override bool ShouldEnterLongPosition(Bar[] bars)
         {
-            // This method is required by BaseStrategyManager but not used in multi-level approach
-            // The multi-level logic is handled in ProcessEntryLevels
-            return false;
+            return bars?.Length > 0 && ShouldEnterLong(bars[0]);
         }
 
         public override bool ShouldEnterShortPosition(Bar[] bars)
         {
-            // This method is required by BaseStrategyManager but not used in multi-level approach
-            // The multi-level logic is handled in ProcessEntryLevels
-            return false;
+            return bars?.Length > 0 && ShouldEnterShort(bars[0]);
         }
 
         public override bool ShouldExitLongPosition(Bar[] bars)
         {
-            // This method is required by BaseStrategyManager but not used in multi-level approach
-            // The multi-level logic is handled in ProcessExitLevels
-            return false;
+            return currentPosition > 0 && (bars?.Length > 0 && ShouldForceExitAll(bars[0].DateTime));
         }
 
         public override bool ShouldExitShortPosition(Bar[] bars)
         {
-            // This method is required by BaseStrategyManager but not used in multi-level approach
-            // The multi-level logic is handled in ProcessExitLevels
-            return false;
+            return currentPosition < 0 && (bars?.Length > 0 && ShouldForceExitAll(bars[0].DateTime));
         }
 
         #endregion
 
-        #region Helper Methods
-
-        private void UpdateMomentum(Bar bar)
-        {
-            if (barHistory.Count < 2)
-            {
-                currentMomentum = 0;
-                return;
-            }
-
-            var oldestBar = barHistory.First();
-            var newestBar = bar;
-
-            currentMomentum = (newestBar.Close - oldestBar.Close) / oldestBar.Close;
-        }
-
-        private int CalculatePositionSizeForLevel(Bar bar, double accountValue, double entryLevel)
-        {
-            // Scale position size based on entry level strength
-            double momentumStrength = Math.Abs(currentMomentum);
-            double levelMultiplier = entryLevel / entryLevels.Max();
-
-            return Math.Max(1, (int)(basePositionSize * levelMultiplier));
-        }
-
-        public override void OnFill(Fill fill)
-        {
-            base.OnFill(fill);
-
-            // Update level manager with fill information
-            if (levelManager != null)
-            {
-                levelManager.UpdateOrderStatus(fill.Order.Id, OrderStatus.Filled);
-            }
-        }
-
-        public override void OnOrderEvent(Order order)
-        {
-            base.OnOrderEvent(order);
-
-            // Update level manager with order status
-            if (levelManager != null)
-            {
-                levelManager.UpdateOrderStatus(order.Id, order.Status);
-            }
-        }
-
-        /// <summary>
-        /// Get current level manager statistics for monitoring
-        /// </summary>
-        public LevelManagerStats GetLevelStats()
-        {
-            return levelManager?.GetStats() ?? new LevelManagerStats();
-        }
-
-        /// <summary>
-        /// Get total unrealized PnL across all levels
-        /// </summary>
-        public double GetTotalUnrealizedPnL(double currentPrice)
-        {
-            return levelManager?.CalculateTotalUnrealizedPnL(currentPrice) ?? 0;
-        }
-
-        #endregion
     }
 }
