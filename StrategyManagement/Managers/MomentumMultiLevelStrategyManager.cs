@@ -62,7 +62,9 @@ namespace StrategyManagement
             barHistory = new Queue<Bar>();
             currentPosition = 0;
             averageEntryPrice = 0;
+            priceWindow = new Queue<double>();
 
+            
         }
 
         #endregion
@@ -72,7 +74,6 @@ namespace StrategyManagement
         public void Initialize(StrategyParameters parameters)
         {
             base.Initialize(parameters);
-
             // Parse configuration
             ParseConfiguration();
 
@@ -82,7 +83,6 @@ namespace StrategyManagement
             stopLossPercent = 0.02;
             takeProfitPercent = 0.05;
             isMeanReverting = false;
-
 
             // Initialize level manager
             levelManager = new LevelManager(entryLevels, exitLevels, isMeanReverting);
@@ -124,43 +124,23 @@ namespace StrategyManagement
 
             if (barHistory.Count >= lookbackPeriod)
             {
-                UpdateMomentum(signalBar);
                 CalculateStatistics();
-            }
+                signal = signalBar.Close / movingAverage - 1.0;
 
-            // If in pair mode, could also track constituent momentum
-            if (isPairMode && bars.Length > 2)
-            {
-                Bar numBar = GetNumeratorBar(bars);
-                Bar denBar = GetDenominatorBar(bars);
-                // Could track separate momentum for analysis
+                ProcessExitDecisions(signal, signalBar);
+
+                ProcessEntryDecisions(signal,signalBar);
             }
         }
 
         public override void ProcessBar(Bar[] bars)
         {
-            if (bars == null || bars.Length == 0) return;
-
-            Bar currentBar = GetSignalBar(bars);
-
-            // Update momentum
-            UpdateMomentum(currentBar);
-
-            if (barHistory.Count < lookbackPeriod)
-                return;
-
-            // Clear, explicit entry/exit logic - no abstraction
-            ProcessEntryDecisions(currentBar);
-            ProcessExitDecisions(currentBar);
-
-            // Cleanup
-            levelManager.CleanupCompletedOrders();
         }
 
         /// <summary>
         /// Clear, explicit entry logic - user has full control
         /// </summary>
-        private void ProcessEntryDecisions(Bar bar)
+        private void ProcessEntryDecisions(double signal, Bar bar)
         {
             // Simple time checks
             if (!IsWithinTradingHours(bar.DateTime))
@@ -170,6 +150,7 @@ namespace StrategyManagement
             if (ShouldEnterLong(bar))
             {
                 var longEntryLevels = levelManager.GetTriggeredEntryLevels(currentMomentum, OrderSide.Buy);
+                
                 foreach (var entryLevel in longEntryLevels)
                 {
                     ExecuteEntryOrder(entryLevel, OrderSide.Buy, bar);
@@ -180,6 +161,7 @@ namespace StrategyManagement
             if (ShouldEnterShort(bar))
             {
                 var shortEntryLevels = levelManager.GetTriggeredEntryLevels(currentMomentum, OrderSide.Sell);
+
                 foreach (var entryLevel in shortEntryLevels)
                 {
                     ExecuteEntryOrder(entryLevel, OrderSide.Sell, bar);
@@ -190,7 +172,7 @@ namespace StrategyManagement
         /// <summary>
         /// Clear, explicit exit logic - user has full control
         /// </summary>
-        private void ProcessExitDecisions(Bar bar)
+        private void ProcessExitDecisions(double signal, Bar bar)
         {
             // Force exit at end of day - simple and clear
             if (ShouldForceExitAll(bar.DateTime))
@@ -200,7 +182,8 @@ namespace StrategyManagement
             }
 
             // Process level-based exits
-            var triggeredExits = levelManager.GetAllTriggeredExitLevels(currentMomentum);
+            var triggeredExits = levelManager.GetAllTriggeredExitLevels(signal);
+
             foreach (var kvp in triggeredExits)
             {
                 string levelId = kvp.Key;
@@ -261,7 +244,7 @@ namespace StrategyManagement
         private bool ShouldForceExitAll(DateTime currentTime)
         {
             // Simple end-of-day exit
-            return currentTime.TimeOfDay >= Parameters.exit_time;
+            return currentTime.TimeOfDay >= base.Parameters.exit_time;
         }
 
         #endregion
@@ -276,8 +259,7 @@ namespace StrategyManagement
             try
             {
                 // Create level
-                var level = levelManager.CreateLevel(entryLevel, side, positionSize,
-                                                   bar.Close, currentMomentum, bar.DateTime);
+                var level = levelManager.CreateLevel(entryLevel, side, positionSize, bar.Close, currentMomentum, bar.DateTime);
 
                 // Place order if we have a trade manager
                 if (TradeManager != null && !TradeManager.HasLiveOrder)
@@ -287,6 +269,7 @@ namespace StrategyManagement
                     if (orderId > 0)
                     {
                         level.AddOrder(orderId, LevelOrderType.Entry, positionSize, bar.Close);
+
                         Console.WriteLine($"Entry order: {side} {positionSize} @ {bar.Close:F4} (Level {entryLevel})");
                     }
                 }
@@ -308,6 +291,7 @@ namespace StrategyManagement
             try
             {
                 var level = levelManager.GetLevel(levelId);
+
                 if (level == null) return;
 
                 int exitSize = level.GetExitQuantityForLevel(exitLevelIndex);
@@ -323,6 +307,7 @@ namespace StrategyManagement
                     if (orderId > 0)
                     {
                         level.AddOrder(orderId, LevelOrderType.Exit, exitSize, bar.Close, exitLevelIndex);
+
                         Console.WriteLine($"Exit order: {exitSide} {exitSize} @ {bar.Close:F4} (Level {levelId})");
                     }
                 }
@@ -414,20 +399,6 @@ namespace StrategyManagement
 
             if (exitLevels == null || exitLevels.Count == 0)
                 exitLevels = new List<double> { 0.5, 0.25 };
-        }
-
-        private void UpdateMomentum(Bar bar)
-        {
-            barHistory.Enqueue(bar);
-            if (barHistory.Count > lookbackPeriod)
-                barHistory.Dequeue();
-
-            if (barHistory.Count >= 2)
-            {
-                var oldestBar = barHistory.First();
-                var newestBar = bar;
-                currentMomentum = (newestBar.Close - oldestBar.Close) / oldestBar.Close;
-            }
         }
 
         private void CalculateStatistics()

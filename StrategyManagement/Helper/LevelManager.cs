@@ -53,6 +53,8 @@ namespace StrategyManagement
         /// </summary>
         public int ActiveLevelCount => ActiveLevels.Count;
 
+        public int currentLevelId;
+
         #endregion
 
         #region Constructor
@@ -65,6 +67,8 @@ namespace StrategyManagement
             
             ActiveLevels = new Dictionary<string, Level>();
             CompletedLevels = new List<Level>();
+
+            currentLevelId = 0;
         }
 
         #endregion
@@ -113,6 +117,7 @@ namespace StrategyManagement
                 return ActiveLevels[levelId];
 
             var level = new Level(levelId, entryThreshold, ExitLevels, IsMeanReverting);
+
             level.ExecuteEntry(dateTime, side, positionSize, entryPrice, actualSignal);
             
             ActiveLevels[levelId] = level;
