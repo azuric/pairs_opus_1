@@ -6,6 +6,7 @@ using Parameters;
 using System.Threading;
 using System.Security.Cryptography;
 using SmartQuant.Statistics;
+using System.Security.Policy;
 
 namespace StrategyManagement
 {
@@ -50,6 +51,14 @@ namespace StrategyManagement
         private readonly Queue<double> priceWindow;
         private double movingAverage;
         private double signal;
+        private DateTime currentDate;
+
+        private double minimumThreshold;
+        private double maximumThreshold;
+        private double lookBackPeriod;
+        private double dailyMad;
+        private double mad;
+        private bool isStatisticsReady;
 
         #endregion
 
@@ -63,15 +72,13 @@ namespace StrategyManagement
             currentPosition = 0;
             averageEntryPrice = 0;
             priceWindow = new Queue<double>();
-
-            
         }
 
         #endregion
 
         #region Initialization
 
-        public void Initialize(StrategyParameters parameters)
+        public override void Initialize(StrategyParameters parameters)
         {
             base.Initialize(parameters);
             // Parse configuration
@@ -116,20 +123,32 @@ namespace StrategyManagement
         {
             Bar signalBar = GetSignalBar(bars);
 
-            barHistory.Enqueue(signalBar);
-            if (barHistory.Count > lookbackPeriod)
+            priceWindow.Enqueue(signalBar.Close);
+
+            if (priceWindow.Count > lookbackPeriod)
             {
-                barHistory.Dequeue();
+                priceWindow.Dequeue();
             }
 
-            if (barHistory.Count >= lookbackPeriod)
+            if (priceWindow.Count >= lookbackPeriod)
             {
                 CalculateStatistics();
-                signal = signalBar.Close / movingAverage - 1.0;
+                signal = (signalBar.Close / movingAverage) - 1.0;
+
+                if (signalBar.CloseDateTime.Date != currentDate)
+                {
+                    dailyMad = mad;
+                    currentDate = signalBar.CloseDateTime.Date;
+                    mad = Math.Abs(signal);
+                }
+                else if (Math.Abs(signal) > mad)
+                {
+                    mad = Math.Abs(signal);
+                }
 
                 ProcessExitDecisions(signal, signalBar);
 
-                ProcessEntryDecisions(signal,signalBar);
+                ProcessEntryDecisions(signal, bars);
             }
         }
 
@@ -140,31 +159,33 @@ namespace StrategyManagement
         /// <summary>
         /// Clear, explicit entry logic - user has full control
         /// </summary>
-        private void ProcessEntryDecisions(double signal, Bar bar)
+        private void ProcessEntryDecisions(double signal, Bar[] bars)
         {
+            Bar bar = GetSignalBar(bars);
             // Simple time checks
             if (!IsWithinTradingHours(bar.DateTime))
                 return;
 
             // Check for long entries - explicit logic, no abstraction
-            if (ShouldEnterLong(bar))
+            // Simple position limit check
+            bool positionCheck = levelManager.ActiveLevelCount < levelManager.MaxConcurrentLevels;
+
+            // Simple time check
+            bool timeCheck = IsWithinTradingHours(bar.DateTime);
+
+            foreach (double entryLevel in entryLevels)
             {
-                var longEntryLevels = levelManager.GetTriggeredEntryLevels(currentMomentum, OrderSide.Buy);
-                
-                foreach (var entryLevel in longEntryLevels)
+                if (signal < entryLevel * mad)
                 {
-                    ExecuteEntryOrder(entryLevel, OrderSide.Buy, bar);
+                    if(positionCheck && timeCheck)
+                        ExecuteEntryOrder(entryLevel, OrderSide.Buy, bars);
                 }
-            }
-
-            // Check for short entries - explicit logic, no abstraction
-            if (ShouldEnterShort(bar))
-            {
-                var shortEntryLevels = levelManager.GetTriggeredEntryLevels(currentMomentum, OrderSide.Sell);
-
-                foreach (var entryLevel in shortEntryLevels)
+            
+                    // Check for short entries - explicit logic, no abstraction
+                if(signal > entryLevel * mad)
                 {
-                    ExecuteEntryOrder(entryLevel, OrderSide.Sell, bar);
+                    if (positionCheck && timeCheck)
+                        ExecuteEntryOrder(entryLevel, OrderSide.Sell, bars);
                 }
             }
         }
@@ -207,8 +228,8 @@ namespace StrategyManagement
         {
             // Simple momentum check
             bool momentumCondition = isMeanReverting ?
-                currentMomentum <= -Math.Abs(entryLevels.Min()) :
-                currentMomentum >= entryLevels.Min();
+                signal <= -Math.Abs(entryLevels.Min()) :
+                signal >= entryLevels.Min();
 
             // Simple position limit check
             bool positionCheck = levelManager.ActiveLevelCount < levelManager.MaxConcurrentLevels;
@@ -226,8 +247,8 @@ namespace StrategyManagement
         {
             // Simple momentum check
             bool momentumCondition = isMeanReverting ?
-                currentMomentum >= Math.Abs(entryLevels.Min()) :
-                currentMomentum <= -entryLevels.Min();
+                signal >= Math.Abs(entryLevels.Min()) :
+                signal <= -entryLevels.Min();
 
             // Simple position limit check
             bool positionCheck = levelManager.ActiveLevelCount < levelManager.MaxConcurrentLevels;
@@ -254,17 +275,23 @@ namespace StrategyManagement
         /// <summary>
         /// Execute entry order - simple, direct, no abstraction
         /// </summary>
-        private void ExecuteEntryOrder(double entryLevel, OrderSide side, Bar bar)
+        private void ExecuteEntryOrder(double entryLevel, OrderSide side, Bar[] bars)
         {
             try
             {
-                // Create level
-                var level = levelManager.CreateLevel(entryLevel, side, positionSize, bar.Close, currentMomentum, bar.DateTime);
+                Bar bar = GetSignalBar(bars);
 
                 // Place order if we have a trade manager
                 if (TradeManager != null && !TradeManager.HasLiveOrder)
                 {
+                    double entryPrice = bar.Close;
+
+                    var level = levelManager.CreateLevel(entryLevel, OrderSide.Buy, positionSize, entryPrice, currentMomentum, bar.DateTime);
+
                     int orderId = TradeManager.CreateOrder(side, positionSize, bar.Close, tradeInstrument);
+
+                    // Execute theoretical entry
+                    ExecuteTheoreticalEntry(bars, OrderSide.Buy);
 
                     if (orderId > 0)
                     {
@@ -366,31 +393,34 @@ namespace StrategyManagement
         private void ParseConfiguration()
         {
             // Simple parameter parsing - no complex abstraction
-            if (Parameters.additional_params != null)
+
+            var parameters = base.Parameters;
+
+            if (parameters.additional_params != null)
             {
-                if (Parameters.additional_params.ContainsKey("entry_levels"))
+                if (parameters.additional_params.ContainsKey("entry_levels"))
                 {
-                    var entryObj = Parameters.additional_params["entry_levels"];
+                    var entryObj = parameters.additional_params["entry_levels"];
                     if (entryObj is List<object> entryList)
                         entryLevels = entryList.Select(x => Convert.ToDouble(x)).ToList();
                     else if (entryObj is double[] entryArray)
                         entryLevels = entryArray.ToList();
                 }
 
-                if (Parameters.additional_params.ContainsKey("exit_levels"))
+                if  (parameters.additional_params.ContainsKey("exit_levels"))
                 {
-                    var exitObj = Parameters.additional_params["exit_levels"];
+                    var exitObj = parameters.additional_params["exit_levels"];
                     if (exitObj is List<object> exitList)
                         exitLevels = exitList.Select(x => Convert.ToDouble(x)).ToList();
                     else if (exitObj is double[] exitArray)
                         exitLevels = exitArray.ToList();
                 }
 
-                if (Parameters.additional_params.ContainsKey("momentum_period"))
-                    lookbackPeriod = Convert.ToInt32(Parameters.additional_params["momentum_period"]);
+                if (parameters.additional_params.ContainsKey("momentum_period"))
+                    lookbackPeriod = Convert.ToInt32(parameters.additional_params["momentum_period"]);
 
-                if (Parameters.additional_params.ContainsKey("is_mean_reverting"))
-                    isMeanReverting = Convert.ToBoolean(Parameters.additional_params["is_mean_reverting"]);
+                if (parameters.additional_params.ContainsKey("is_mean_reverting"))
+                    isMeanReverting = Convert.ToBoolean(parameters.additional_params["is_mean_reverting"]);
             }
 
             // Set defaults if not configured
