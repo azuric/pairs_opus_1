@@ -16,7 +16,7 @@ namespace StrategyManagement
         /// <summary>
         /// Unique identifier for this level
         /// </summary>
-        public string Id { get; private set; }
+        public int Id { get; private set; }
 
         /// <summary>
         /// The signal threshold that triggered this level's entry
@@ -89,7 +89,7 @@ namespace StrategyManagement
 
         #region Constructor
 
-        public Level(string id, double entrySignalThreshold, List<double> exitLevels, bool isMeanReverting = false)
+        public Level(int id, double entrySignalThreshold, List<double> exitLevels, bool isMeanReverting = false)
         {
             Id = id;
             EntrySignalThreshold = entrySignalThreshold;
@@ -107,30 +107,6 @@ namespace StrategyManagement
 
         #region Entry Methods
 
-        /// <summary>
-        /// Check if this level should enter based on current signal
-        /// </summary>
-        public bool ShouldEnter(double currentSignal, OrderSide side)
-        {
-            if (IsEntryComplete) return false;
-
-            if (IsMeanReverting)
-            {
-                // For mean reverting strategies, enter when signal moves away from mean
-                if (side == OrderSide.Buy)
-                    return currentSignal <= -EntrySignalThreshold;
-                else
-                    return currentSignal >= EntrySignalThreshold;
-            }
-            else
-            {
-                // For momentum strategies, enter when signal exceeds threshold
-                if (side == OrderSide.Buy)
-                    return currentSignal >= EntrySignalThreshold;
-                else
-                    return currentSignal <= -EntrySignalThreshold;
-            }
-        }
 
         /// <summary>
         /// Execute entry for this level
@@ -152,6 +128,7 @@ namespace StrategyManagement
         private void InitializeExitLevels()
         {
             ExitLevelStatus.Clear();
+
             int exitSizePerLevel = Math.Abs(CurrentPosition) / ExitLevels.Count;
             int remainder = Math.Abs(CurrentPosition) % ExitLevels.Count;
 
@@ -193,22 +170,22 @@ namespace StrategyManagement
         {
             double exitThreshold = EntrySignalThreshold * ExitLevels[exitLevelIndex];
 
-            if (IsMeanReverting)
-            {
+            //if (IsMeanReverting)
+            //{
                 // For mean reverting, exit when signal moves back toward mean
                 if (Side == OrderSide.Buy)
                     return currentSignal >= -exitThreshold;
                 else
                     return currentSignal <= exitThreshold;
-            }
-            else
-            {
-                // For momentum, exit when signal weakens
-                if (Side == OrderSide.Buy)
-                    return currentSignal <= exitThreshold;
-                else
-                    return currentSignal >= -exitThreshold;
-            }
+            //}
+            //else
+            //{
+            //    // For momentum, exit when signal weakens
+            //    if (Side == OrderSide.Buy)
+            //        return currentSignal <= exitThreshold;
+            //    else
+            //        return currentSignal >= -exitThreshold;
+            //}
         }
 
         /// <summary>

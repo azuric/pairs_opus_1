@@ -60,6 +60,8 @@ namespace StrategyManagement
         private double mad;
         private bool isStatisticsReady;
 
+        private Dictionary<int, int> order2LevelId = new Dictionary<int, int>();
+
         #endregion
 
         #region Constructor
@@ -96,11 +98,6 @@ namespace StrategyManagement
             levelManager.MaxConcurrentLevels = 10;
 
             Console.WriteLine($"Strategy {Name} initialized with {entryLevels.Count} entry levels and {exitLevels.Count} exit levels");
-        }
-
-        public void SetTradeManager(ITradeManager tradeManager)
-        {
-            TradeManager = tradeManager ?? throw new ArgumentNullException(nameof(tradeManager));
         }
 
         public void SetTradingMode(bool isPairMode, int tradeInstrumentId)
@@ -173,19 +170,26 @@ namespace StrategyManagement
             // Simple time check
             bool timeCheck = IsWithinTradingHours(bar.DateTime);
 
-            foreach (double entryLevel in entryLevels)
+            for(int i = 0; i< entryLevels.Count; i++)
             {
-                if (signal < entryLevel * mad)
+                double entryLevel = entryLevels[i];
+
+                var level = levelManager.Levels[i];
+
+                if (level == null)
                 {
-                    if(positionCheck && timeCheck)
-                        ExecuteEntryOrder(entryLevel, OrderSide.Buy, bars);
-                }
-            
+                    if (signal < -entryLevel * mad)
+                    {
+                        if (positionCheck && timeCheck)
+                            ExecuteEntryOrder(i, entryLevel, OrderSide.Buy, bars);
+                    }
+
                     // Check for short entries - explicit logic, no abstraction
-                if(signal > entryLevel * mad)
-                {
-                    if (positionCheck && timeCheck)
-                        ExecuteEntryOrder(entryLevel, OrderSide.Sell, bars);
+                    if (signal > entryLevel * mad)
+                    {
+                        if (positionCheck && timeCheck)
+                            ExecuteEntryOrder(i, entryLevel, OrderSide.Sell, bars);
+                    }
                 }
             }
         }
@@ -207,7 +211,7 @@ namespace StrategyManagement
 
             foreach (var kvp in triggeredExits)
             {
-                string levelId = kvp.Key;
+                int levelId = kvp.Key;
                 var exitLevelIndices = kvp.Value;
 
                 foreach (var exitLevelIndex in exitLevelIndices)
@@ -226,18 +230,7 @@ namespace StrategyManagement
         /// </summary>
         private bool ShouldEnterLong(Bar bar)
         {
-            // Simple momentum check
-            bool momentumCondition = isMeanReverting ?
-                signal <= -Math.Abs(entryLevels.Min()) :
-                signal >= entryLevels.Min();
-
-            // Simple position limit check
-            bool positionCheck = levelManager.ActiveLevelCount < levelManager.MaxConcurrentLevels;
-
-            // Simple time check
-            bool timeCheck = IsWithinTradingHours(bar.DateTime);
-
-            return momentumCondition && positionCheck && timeCheck;
+            return false;
         }
 
         /// <summary>
@@ -245,18 +238,7 @@ namespace StrategyManagement
         /// </summary>
         private bool ShouldEnterShort(Bar bar)
         {
-            // Simple momentum check
-            bool momentumCondition = isMeanReverting ?
-                signal >= Math.Abs(entryLevels.Min()) :
-                signal <= -entryLevels.Min();
-
-            // Simple position limit check
-            bool positionCheck = levelManager.ActiveLevelCount < levelManager.MaxConcurrentLevels;
-
-            // Simple time check
-            bool timeCheck = IsWithinTradingHours(bar.DateTime);
-
-            return momentumCondition && positionCheck && timeCheck;
+            return false;
         }
 
         /// <summary>
@@ -264,8 +246,7 @@ namespace StrategyManagement
         /// </summary>
         private bool ShouldForceExitAll(DateTime currentTime)
         {
-            // Simple end-of-day exit
-            return currentTime.TimeOfDay >= base.Parameters.exit_time;
+            return false;
         }
 
         #endregion
@@ -275,25 +256,27 @@ namespace StrategyManagement
         /// <summary>
         /// Execute entry order - simple, direct, no abstraction
         /// </summary>
-        private void ExecuteEntryOrder(double entryLevel, OrderSide side, Bar[] bars)
+        private void ExecuteEntryOrder(int levelIndex, double entryLevel, OrderSide side, Bar[] bars)
         {
             try
             {
                 Bar bar = GetSignalBar(bars);
 
                 // Place order if we have a trade manager
-                if (TradeManager != null && !TradeManager.HasLiveOrder)
+                if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
                 {
                     double entryPrice = bar.Close;
 
-                    var level = levelManager.CreateLevel(entryLevel, OrderSide.Buy, positionSize, entryPrice, currentMomentum, bar.DateTime);
+                    var level = levelManager.CreateLevel(levelIndex, entryLevel, OrderSide.Buy, positionSize, entryPrice, currentMomentum, bar.DateTime);
 
-                    int orderId = TradeManager.CreateOrder(side, positionSize, bar.Close, tradeInstrument);
+                    int orderId = base.TradeManager.CreateOrder(side, positionSize, bar.Close, tradeInstrument);
+
+                    order2LevelId[orderId] = level.Id;
 
                     // Execute theoretical entry
                     ExecuteTheoreticalEntry(bars, OrderSide.Buy);
 
-                    if (orderId > 0)
+                    if (orderId >= 0)
                     {
                         level.AddOrder(orderId, LevelOrderType.Entry, positionSize, bar.Close);
 
@@ -313,7 +296,7 @@ namespace StrategyManagement
         /// <summary>
         /// Execute exit order - simple, direct, no abstraction
         /// </summary>
-        private void ExecuteExitOrder(string levelId, int exitLevelIndex, Bar bar)
+        private void ExecuteExitOrder(int levelId, int exitLevelIndex, Bar bar)
         {
             try
             {
@@ -325,6 +308,9 @@ namespace StrategyManagement
                 if (exitSize <= 0) return;
 
                 OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
+
+                // Execute the exit in level manager
+                levelManager.ExecuteExit(levelId, exitLevelIndex, bar.Close, bar.DateTime);
 
                 // Place order if we have a trade manager
                 if (TradeManager != null && !TradeManager.HasLiveOrder)
@@ -338,9 +324,6 @@ namespace StrategyManagement
                         Console.WriteLine($"Exit order: {exitSide} {exitSize} @ {bar.Close:F4} (Level {levelId})");
                     }
                 }
-
-                // Execute the exit in level manager
-                levelManager.ExecuteExit(levelId, exitLevelIndex, bar.Close, bar.DateTime);
 
                 // Update our simple position tracking
                 UpdatePositionTracking(exitSide, exitSize, bar.Close);

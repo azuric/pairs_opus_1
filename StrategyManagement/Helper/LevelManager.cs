@@ -16,7 +16,12 @@ namespace StrategyManagement
         /// <summary>
         /// Dictionary of active levels, keyed by level ID
         /// </summary>
-        public Dictionary<string, Level> ActiveLevels { get; private set; }
+        public Dictionary<int, Level> ActiveLevels { get; private set; }
+
+        /// <summary>
+        /// Dictionary of levels, keyed by level ID
+        /// </summary>
+        public Dictionary<int, int> ActiveLevels2Levels { get; set; }
 
         /// <summary>
         /// List of completed levels (for historical tracking)
@@ -32,6 +37,11 @@ namespace StrategyManagement
         /// Exit level multipliers configured for this strategy
         /// </summary>
         public List<double> ExitLevels { get; private set; }
+
+        /// <summary>
+        /// Entry
+        /// </summary>
+        public Level[] Levels { get; set; }
 
         /// <summary>
         /// Whether the strategy is mean reverting
@@ -59,13 +69,17 @@ namespace StrategyManagement
 
         #region Constructor
 
+
         public LevelManager(List<double> entryLevels, List<double> exitLevels, bool isMeanReverting = false)
         {
             EntryLevels = new List<double>(entryLevels);
             ExitLevels = new List<double>(exitLevels);
             IsMeanReverting = isMeanReverting;
             
-            ActiveLevels = new Dictionary<string, Level>();
+            Levels = new Level[entryLevels.Count];
+            
+            ActiveLevels = new Dictionary<int, Level>();
+            ActiveLevels2Levels = new Dictionary<int, int>();
             CompletedLevels = new List<Level>();
 
             currentLevelId = 0;
@@ -77,59 +91,61 @@ namespace StrategyManagement
 
         /// <summary>
         /// Check which entry levels should be triggered based on current signal
-        /// </summary>
-        public List<double> GetTriggeredEntryLevels(double currentSignal, OrderSide side)
-        {
-            var triggeredLevels = new List<double>();
+        ///// </summary>
+        //public List<double> GetTriggeredEntryLevels(double currentSignal, OrderSide side)
+        //{
+        //    var triggeredLevels = new List<double>();
 
-            foreach (var entryLevel in EntryLevels)
-            {
-                // Check if we already have an active level for this threshold
-                string levelId = GenerateLevelId(entryLevel, side);
-                if (ActiveLevels.ContainsKey(levelId))
-                    continue;
+        //    foreach (var entryLevel in EntryLevels)
+        //    {
+        //        // Check if we already have an active level for this threshold
+        //        int levelId = currentLevelId;
 
-                // Check if we've reached the maximum concurrent levels
-                if (ActiveLevels.Count >= MaxConcurrentLevels)
-                    break;
+        //        if (ActiveLevels.ContainsKey(levelId))
+        //            continue;
 
-                // Create a temporary level to check entry condition
-                var tempLevel = new Level(levelId, entryLevel, ExitLevels, IsMeanReverting);
-                if (tempLevel.ShouldEnter(currentSignal, side))
-                {
-                    triggeredLevels.Add(entryLevel);
-                }
-            }
+        //        // Check if we've reached the maximum concurrent levels
+        //        if (ActiveLevels.Count >= MaxConcurrentLevels)
+        //            break;
 
-            return triggeredLevels;
-        }
+        //        // Create a temporary level to check entry condition
+        //        var tempLevel = new Level(levelId, entryLevel, ExitLevels, IsMeanReverting);
+        //        if (tempLevel.ShouldEnter(currentSignal, side))
+        //        {
+        //            triggeredLevels.Add(entryLevel);
+        //        }
+        //    }
+
+        //    return triggeredLevels;
+        //}
 
         /// <summary>
         /// Create and activate a new level
         /// </summary>
-        public Level CreateLevel(double entryThreshold, OrderSide side, int positionSize, 
+        public Level CreateLevel(int entryLevel, double entryThreshold, OrderSide side, int positionSize, 
                                 double entryPrice, double actualSignal, DateTime dateTime)
         {
-            string levelId = GenerateLevelId(entryThreshold, side);
-            
-            // Don't create if level already exists
-            if (ActiveLevels.ContainsKey(levelId))
-                return ActiveLevels[levelId];
+            int levelId = currentLevelId;
+
+            currentLevelId++;
 
             var level = new Level(levelId, entryThreshold, ExitLevels, IsMeanReverting);
 
-            level.ExecuteEntry(dateTime, side, positionSize, entryPrice, actualSignal);
+            level.ExecuteEntry(dateTime, side, positionSize, entryPrice, actualSignal); 
             
+            Levels[entryLevel] = level;
             ActiveLevels[levelId] = level;
+            ActiveLevels2Levels[levelId] = entryLevel;
+
             return level;
         }
 
         /// <summary>
         /// Get all triggered exit levels across all active levels
         /// </summary>
-        public Dictionary<string, List<int>> GetAllTriggeredExitLevels(double currentSignal)
+        public Dictionary<int, List<int>> GetAllTriggeredExitLevels(double currentSignal)
         {
-            var triggeredExits = new Dictionary<string, List<int>>();
+            var triggeredExits = new Dictionary<int, List<int>>();
 
             foreach (var kvp in ActiveLevels)
             {
@@ -148,7 +164,7 @@ namespace StrategyManagement
         /// <summary>
         /// Execute exit for a specific level and exit level index
         /// </summary>
-        public int ExecuteExit(string levelId, int exitLevelIndex, double exitPrice, DateTime dateTime)
+        public int ExecuteExit(int levelId, int exitLevelIndex, double exitPrice, DateTime dateTime)
         {
             if (!ActiveLevels.ContainsKey(levelId))
                 return 0;
@@ -161,6 +177,7 @@ namespace StrategyManagement
             {
                 CompletedLevels.Add(level);
                 ActiveLevels.Remove(levelId);
+                Levels[ActiveLevels2Levels[levelId]] = null;
             }
 
             return exitSize;
@@ -173,7 +190,7 @@ namespace StrategyManagement
         /// <summary>
         /// Add an order to a specific level
         /// </summary>
-        public void AddOrderToLevel(string levelId, int orderId, LevelOrderType orderType, 
+        public void AddOrderToLevel(int levelId, int orderId, LevelOrderType orderType, 
                                    int quantity, double price, int exitLevelIndex = -1)
         {
             if (ActiveLevels.ContainsKey(levelId))
@@ -200,7 +217,7 @@ namespace StrategyManagement
         /// <summary>
         /// Find which level an order belongs to
         /// </summary>
-        public string FindLevelForOrder(int orderId)
+        public int FindLevelForOrder(int orderId)
         {
             foreach (var kvp in ActiveLevels)
             {
@@ -209,7 +226,7 @@ namespace StrategyManagement
                     return kvp.Key;
                 }
             }
-            return null;
+            return -1;
         }
 
         /// <summary>
@@ -247,7 +264,7 @@ namespace StrategyManagement
         /// <summary>
         /// Get level by ID
         /// </summary>
-        public Level GetLevel(string levelId)
+        public Level GetLevel(int levelId)
         {
             return ActiveLevels.ContainsKey(levelId) ? ActiveLevels[levelId] : null;
         }
