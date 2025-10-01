@@ -118,7 +118,10 @@ namespace StrategyManagement
 
         public override void OnBar(Bar[] bars)
         {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] OnBar - Processing bar data");
+
             Bar signalBar = GetSignalBar(bars);
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] OnBar - Signal bar: Close={signalBar.Close:F4}, DateTime={signalBar.CloseDateTime}");
 
             priceWindow.Enqueue(signalBar.Close);
 
@@ -127,21 +130,29 @@ namespace StrategyManagement
                 priceWindow.Dequeue();
             }
 
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] OnBar - Price window count: {priceWindow.Count}/{lookbackPeriod}");
+
             if (priceWindow.Count >= lookbackPeriod)
             {
                 CalculateStatistics();
                 signal = (signalBar.Close / movingAverage) - 1.0;
+
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] OnBar - Metrics: Signal={signal:F6}, MovingAvg={movingAverage:F4}, MAD={mad:F6}, DailyMAD={dailyMad:F6}");
 
                 if (signalBar.CloseDateTime.Date != currentDate)
                 {
                     dailyMad = mad;
                     currentDate = signalBar.CloseDateTime.Date;
                     mad = Math.Abs(signal);
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] OnBar - New day detected, reset MAD: {mad:F6}");
                 }
                 else if (Math.Abs(signal) > mad)
                 {
                     mad = Math.Abs(signal);
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] OnBar - Updated MAD: {mad:F6}");
                 }
+
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] OnBar - Current position: {currentPosition}, Active levels: {levelManager.ActiveLevelCount}");
 
                 ProcessExitDecisions(signal, signalBar);
 
@@ -158,10 +169,15 @@ namespace StrategyManagement
         /// </summary>
         private void ProcessEntryDecisions(double signal, Bar[] bars)
         {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessEntryDecisions - Starting entry evaluation");
+
             Bar bar = GetSignalBar(bars);
             // Simple time checks
             if (!IsWithinTradingHours(bar.DateTime))
+            {
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessEntryDecisions - Outside trading hours, skipping");
                 return;
+            }
 
             // Check for long entries - explicit logic, no abstraction
             // Simple position limit check
@@ -170,7 +186,9 @@ namespace StrategyManagement
             // Simple time check
             bool timeCheck = IsWithinTradingHours(bar.DateTime);
 
-            for(int i = 0; i< entryLevels.Count; i++)
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessEntryDecisions - Checks: Position={positionCheck} ({levelManager.ActiveLevelCount}/{levelManager.MaxConcurrentLevels}), Time={timeCheck}");
+
+            for (int i = 0; i < entryLevels.Count; i++)
             {
                 double entryLevel = entryLevels[i];
 
@@ -178,18 +196,43 @@ namespace StrategyManagement
 
                 if (level == null)
                 {
-                    if (signal < -entryLevel * mad)
+                    double longThreshold = -entryLevel * mad;
+                    double shortThreshold = entryLevel * mad;
+
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessEntryDecisions - Level {i}: EntryLevel={entryLevel}, LongThreshold={longThreshold:F6}, ShortThreshold={shortThreshold:F6}, Signal={signal:F6}");
+
+                    if (signal < longThreshold)
                     {
+                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessEntryDecisions - Long signal triggered for level {i}");
                         if (positionCheck && timeCheck)
+                        {
+                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessEntryDecisions - Executing long entry for level {i}");
                             ExecuteEntryOrder(i, entryLevel, OrderSide.Buy, bars);
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessEntryDecisions - Long entry blocked for level {i} - checks failed");
+                        }
                     }
 
                     // Check for short entries - explicit logic, no abstraction
-                    if (signal > entryLevel * mad)
+                    if (signal > shortThreshold)
                     {
+                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessEntryDecisions - Short signal triggered for level {i}");
                         if (positionCheck && timeCheck)
+                        {
+                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessEntryDecisions - Executing short entry for level {i}");
                             ExecuteEntryOrder(i, entryLevel, OrderSide.Sell, bars);
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessEntryDecisions - Short entry blocked for level {i} - checks failed");
+                        }
                     }
+                }
+                else
+                {
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessEntryDecisions - Level {i} already active, skipping");
                 }
             }
         }
@@ -199,9 +242,12 @@ namespace StrategyManagement
         /// </summary>
         private void ProcessExitDecisions(double signal, Bar bar)
         {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessExitDecisions - Starting exit evaluation");
+
             // Force exit at end of day - simple and clear
             if (ShouldForceExitAll(bar.DateTime))
             {
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessExitDecisions - Force exit triggered");
                 ForceExitAllPositions(bar);
                 return;
             }
@@ -209,13 +255,18 @@ namespace StrategyManagement
             // Process level-based exits
             var triggeredExits = levelManager.GetAllTriggeredExitLevels(signal);
 
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessExitDecisions - Found {triggeredExits.Count} levels with triggered exits");
+
             foreach (var kvp in triggeredExits)
             {
                 int levelId = kvp.Key;
                 var exitLevelIndices = kvp.Value;
 
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessExitDecisions - Level {levelId} has {exitLevelIndices.Count} triggered exit levels");
+
                 foreach (var exitLevelIndex in exitLevelIndices)
                 {
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ProcessExitDecisions - Executing exit for level {levelId}, exit index {exitLevelIndex}");
                     ExecuteExitOrder(levelId, exitLevelIndex, bar);
                 }
             }
@@ -260,6 +311,8 @@ namespace StrategyManagement
         {
             try
             {
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Starting entry execution for level {levelIndex}");
+
                 Bar bar = GetSignalBar(bars);
 
                 // Place order if we have a trade manager
@@ -267,9 +320,15 @@ namespace StrategyManagement
                 {
                     double entryPrice = bar.Close;
 
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Creating level: Index={levelIndex}, EntryLevel={entryLevel}, Side={side}, Size={positionSize}, Price={entryPrice:F4}");
+
                     var level = levelManager.CreateLevel(levelIndex, entryLevel, OrderSide.Buy, positionSize, entryPrice, currentMomentum, bar.DateTime);
 
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Level created with ID: {level.Id}");
+
                     int orderId = base.TradeManager.CreateOrder(side, positionSize, bar.Close, tradeInstrument);
+
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Order created with ID: {orderId}");
 
                     order2LevelId[orderId] = level.Id;
 
@@ -280,16 +339,25 @@ namespace StrategyManagement
                     {
                         level.AddOrder(orderId, LevelOrderType.Entry, positionSize, bar.Close);
 
-                        Console.WriteLine($"Entry order: {side} {positionSize} @ {bar.Close:F4} (Level {entryLevel})");
+                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Entry order: {side} {positionSize} @ {bar.Close:F4} (Level {entryLevel})");
                     }
+                    else
+                    {
+                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Failed to create order (ID: {orderId})");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Cannot place order: TradeManager={base.TradeManager != null}, HasLiveOrder={base.TradeManager?.HasLiveOrder}");
                 }
 
                 // Update our simple position tracking
                 UpdatePositionTracking(side, positionSize, bar.Close);
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Position updated: Current={currentPosition}, AvgEntry={averageEntryPrice:F4}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error executing entry order: {ex.Message}");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Error executing entry order: {ex.Message}");
             }
         }
 
@@ -390,7 +458,7 @@ namespace StrategyManagement
                         entryLevels = entryArray.ToList();
                 }
 
-                if  (parameters.additional_params.ContainsKey("exit_levels"))
+                if (parameters.additional_params.ContainsKey("exit_levels"))
                 {
                     var exitObj = parameters.additional_params["exit_levels"];
                     if (exitObj is List<object> exitList)

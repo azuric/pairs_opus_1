@@ -75,9 +75,9 @@ namespace StrategyManagement
             EntryLevels = new List<double>(entryLevels);
             ExitLevels = new List<double>(exitLevels);
             IsMeanReverting = isMeanReverting;
-            
+
             Levels = new Level[entryLevels.Count];
-            
+
             ActiveLevels = new Dictionary<int, Level>();
             ActiveLevels2Levels = new Dictionary<int, int>();
             CompletedLevels = new List<Level>();
@@ -122,20 +122,25 @@ namespace StrategyManagement
         /// <summary>
         /// Create and activate a new level
         /// </summary>
-        public Level CreateLevel(int entryLevel, double entryThreshold, OrderSide side, int positionSize, 
+        public Level CreateLevel(int entryLevel, double entryThreshold, OrderSide side, int positionSize,
                                 double entryPrice, double actualSignal, DateTime dateTime)
         {
-            int levelId = currentLevelId;
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.CreateLevel - Creating level: EntryLevel={entryLevel}, Threshold={entryThreshold}, Side={side}");
 
+            int levelId = currentLevelId;
             currentLevelId++;
+
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.CreateLevel - Assigned level ID: {levelId}");
 
             var level = new Level(levelId, entryThreshold, ExitLevels, IsMeanReverting);
 
-            level.ExecuteEntry(dateTime, side, positionSize, entryPrice, actualSignal); 
-            
+            level.ExecuteEntry(dateTime, side, positionSize, entryPrice, actualSignal);
+
             Levels[entryLevel] = level;
             ActiveLevels[levelId] = level;
             ActiveLevels2Levels[levelId] = entryLevel;
+
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.CreateLevel - Level {levelId} activated. Total active levels: {ActiveLevels.Count}");
 
             return level;
         }
@@ -145,19 +150,23 @@ namespace StrategyManagement
         /// </summary>
         public Dictionary<int, List<int>> GetAllTriggeredExitLevels(double currentSignal)
         {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.GetAllTriggeredExitLevels - Checking {ActiveLevels.Count} active levels for exits with signal {currentSignal:F6}");
+
             var triggeredExits = new Dictionary<int, List<int>>();
 
             foreach (var kvp in ActiveLevels)
             {
                 var level = kvp.Value;
                 var triggeredLevels = level.GetTriggeredExitLevels(currentSignal);
-                
+
                 if (triggeredLevels.Count > 0)
                 {
                     triggeredExits[kvp.Key] = triggeredLevels;
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.GetAllTriggeredExitLevels - Level {kvp.Key} has {triggeredLevels.Count} triggered exits");
                 }
             }
 
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.GetAllTriggeredExitLevels - Total levels with triggered exits: {triggeredExits.Count}");
             return triggeredExits;
         }
 
@@ -166,18 +175,27 @@ namespace StrategyManagement
         /// </summary>
         public int ExecuteExit(int levelId, int exitLevelIndex, double exitPrice, DateTime dateTime)
         {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ExecuteExit - Executing exit for level {levelId}, exit index {exitLevelIndex}");
+
             if (!ActiveLevels.ContainsKey(levelId))
+            {
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ExecuteExit - Level {levelId} not found in active levels");
                 return 0;
+            }
 
             var level = ActiveLevels[levelId];
             int exitSize = level.ExecuteExit(exitLevelIndex, exitPrice, dateTime);
 
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ExecuteExit - Level {levelId} exit executed: Size={exitSize}");
+
             // Check if level is now complete
             if (level.IsLevelComplete)
             {
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ExecuteExit - Level {levelId} is now complete, moving to completed levels");
                 CompletedLevels.Add(level);
                 ActiveLevels.Remove(levelId);
                 Levels[ActiveLevels2Levels[levelId]] = null;
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ExecuteExit - Active levels count: {ActiveLevels.Count}, Completed levels count: {CompletedLevels.Count}");
             }
 
             return exitSize;
@@ -190,7 +208,7 @@ namespace StrategyManagement
         /// <summary>
         /// Add an order to a specific level
         /// </summary>
-        public void AddOrderToLevel(int levelId, int orderId, LevelOrderType orderType, 
+        public void AddOrderToLevel(int levelId, int orderId, LevelOrderType orderType,
                                    int quantity, double price, int exitLevelIndex = -1)
         {
             if (ActiveLevels.ContainsKey(levelId))
@@ -307,12 +325,12 @@ namespace StrategyManagement
         public List<Level> ForceCloseAllLevels()
         {
             var levelsToClose = ActiveLevels.Values.ToList();
-            
+
             foreach (var level in levelsToClose)
             {
                 CompletedLevels.Add(level);
             }
-            
+
             ActiveLevels.Clear();
             return levelsToClose;
         }

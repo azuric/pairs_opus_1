@@ -113,6 +113,8 @@ namespace StrategyManagement
         /// </summary>
         public void ExecuteEntry(DateTime dateTime, OrderSide side, int positionSize, double entryPrice, double actualSignal)
         {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] Level.ExecuteEntry - Level {Id}: Side={side}, Size={positionSize}, Price={entryPrice:F4}, Signal={actualSignal:F6}");
+
             EntryDateTime = dateTime;
             Side = side;
             PositionSize = positionSize;
@@ -121,8 +123,12 @@ namespace StrategyManagement
             ActualEntrySignal = actualSignal;
             IsEntryComplete = true;
 
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] Level.ExecuteEntry - Level {Id}: CurrentPosition={CurrentPosition}, EntryComplete={IsEntryComplete}");
+
             // Initialize exit level status
             InitializeExitLevels();
+
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] Level.ExecuteEntry - Level {Id}: Initialized {ExitLevelStatus.Count} exit levels");
         }
 
         private void InitializeExitLevels()
@@ -148,7 +154,13 @@ namespace StrategyManagement
         /// </summary>
         public List<int> GetTriggeredExitLevels(double currentSignal)
         {
-            if (!IsEntryComplete || IsLevelComplete) return new List<int>();
+            if (!IsEntryComplete || IsLevelComplete)
+            {
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] Level.GetTriggeredExitLevels - Level {Id}: Not ready for exits (EntryComplete={IsEntryComplete}, LevelComplete={IsLevelComplete})");
+                return new List<int>();
+            }
+
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] Level.GetTriggeredExitLevels - Level {Id}: Checking exits for signal {currentSignal:F6}");
 
             var triggeredLevels = new List<int>();
 
@@ -156,13 +168,18 @@ namespace StrategyManagement
             {
                 if (ExitLevelStatus.ContainsKey(i) && ExitLevelStatus[i] > 0)
                 {
-                    if (ShouldExitAtLevel(currentSignal, i))
+                    bool shouldExit = ShouldExitAtLevel(currentSignal, i);
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] Level.GetTriggeredExitLevels - Level {Id}, Exit {i}: Threshold={ExitLevels[i]}, Remaining={ExitLevelStatus[i]}, ShouldExit={shouldExit}");
+
+                    if (shouldExit)
                     {
                         triggeredLevels.Add(i);
+                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] Level.GetTriggeredExitLevels - Level {Id}: Exit level {i} triggered");
                     }
                 }
             }
 
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] Level.GetTriggeredExitLevels - Level {Id}: Found {triggeredLevels.Count} triggered exit levels");
             return triggeredLevels;
         }
 
@@ -172,11 +189,11 @@ namespace StrategyManagement
 
             //if (IsMeanReverting)
             //{
-                // For mean reverting, exit when signal moves back toward mean
-                if (Side == OrderSide.Buy)
-                    return currentSignal >= -exitThreshold;
-                else
-                    return currentSignal <= exitThreshold;
+            // For mean reverting, exit when signal moves back toward mean
+            if (Side == OrderSide.Buy)
+                return currentSignal >= -exitThreshold;
+            else
+                return currentSignal <= exitThreshold;
             //}
             //else
             //{
@@ -193,17 +210,27 @@ namespace StrategyManagement
         /// </summary>
         public int ExecuteExit(int exitLevelIndex, double exitPrice, DateTime dateTime)
         {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] Level.ExecuteExit - Level {Id}: Attempting exit for level {exitLevelIndex} at price {exitPrice:F4}");
+
             if (!ExitLevelStatus.ContainsKey(exitLevelIndex) || ExitLevelStatus[exitLevelIndex] <= 0)
+            {
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] Level.ExecuteExit - Level {Id}: No quantity available for exit level {exitLevelIndex}");
                 return 0;
+            }
 
             int exitSize = ExitLevelStatus[exitLevelIndex];
             ExitLevelStatus[exitLevelIndex] = 0;
 
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] Level.ExecuteExit - Level {Id}: Exiting {exitSize} units from level {exitLevelIndex}");
+
             // Update current position
+            int previousPosition = CurrentPosition;
             if (Side == OrderSide.Buy)
                 CurrentPosition -= exitSize;
             else
                 CurrentPosition += exitSize;
+
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] Level.ExecuteExit - Level {Id}: Position updated from {previousPosition} to {CurrentPosition}, LevelComplete={IsLevelComplete}");
 
             return exitSize;
         }
