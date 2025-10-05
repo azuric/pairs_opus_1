@@ -649,7 +649,7 @@ namespace StrategyManagement
         {
             try
             {
-                TradeManager?.HandleOrderUpdate(order);
+                TradeManager.HandleOrderUpdate(order);
             }
             catch (Exception ex)
             {

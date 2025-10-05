@@ -35,7 +35,6 @@ namespace StrategyManagement
         private int lookbackPeriod;
         private double currentMomentum;
         private bool isMeanReverting;
-        private int basePositionSize;
         private double stopLossPercent;
         private double takeProfitPercent;
 
@@ -88,7 +87,7 @@ namespace StrategyManagement
 
             // Set default values
             lookbackPeriod = 10;
-            basePositionSize = (int)parameters.position_size;
+
             stopLossPercent = 0.02;
             takeProfitPercent = 0.05;
             isMeanReverting = false;
@@ -315,6 +314,8 @@ namespace StrategyManagement
 
                 Bar bar = GetSignalBar(bars);
 
+
+
                 // Place order if we have a trade manager
                 if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
                 {
@@ -377,11 +378,12 @@ namespace StrategyManagement
 
                 OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
 
+
                 // Execute the exit in level manager
                 levelManager.ExecuteExit(levelId, exitLevelIndex, bar.Close, bar.DateTime);
 
                 // Place order if we have a trade manager
-                if (TradeManager != null && !TradeManager.HasLiveOrder)
+                if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
                 {
                     int orderId = TradeManager.CreateOrder(exitSide, exitSize, bar.Close, tradeInstrument);
 

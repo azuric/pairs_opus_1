@@ -184,6 +184,7 @@ namespace StrategyManagement
             }
 
             var level = ActiveLevels[levelId];
+
             int exitSize = level.ExecuteExit(exitLevelIndex, exitPrice, dateTime);
 
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ExecuteExit - Level {levelId} exit executed: Size={exitSize}");

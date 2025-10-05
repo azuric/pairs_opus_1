@@ -508,6 +508,7 @@ namespace OpenQuant
         protected override void OnOrderReplaced(Order order)
         {
             strategyManager.OnOrderEvent(order);
+
             LogOrderStatus(order);
         }
 
