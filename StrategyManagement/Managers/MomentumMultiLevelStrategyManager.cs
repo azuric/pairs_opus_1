@@ -535,7 +535,7 @@ namespace StrategyManagement
         {
             // Simple fill handling
             Console.WriteLine($"Fill: {fill.Side} {fill.Qty} @ {fill.Price:F4}");
-            lastTradeTime = fill.DateTime;
+            //lastTradeTime = fill.DateTime;
         }
 
         public void OnOrderEvent(Order order)
