@@ -61,7 +61,7 @@ namespace StrategyManagement
         /// <summary>
         /// Total number of active levels
         /// </summary>
-        public int ActiveLevelCount => ActiveLevels.Count;
+        public int ActiveLevelCount;
 
         public int currentLevelId;
 
@@ -139,6 +139,8 @@ namespace StrategyManagement
             Levels[entryLevel] = level;
             ActiveLevels[levelId] = level;
             ActiveLevels2Levels[levelId] = entryLevel;
+
+            ActiveLevelCount++;
 
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.CreateLevel - Level {levelId} activated. Total active levels: {ActiveLevels.Count}");
 

@@ -30,13 +30,10 @@ namespace StrategyManagement
 
         #region Private Fields
 
-        private readonly Queue<Bar> barHistory;
         private LevelManager levelManager;
         private int lookbackPeriod;
         private double currentMomentum;
         private bool isMeanReverting;
-        private double stopLossPercent;
-        private double takeProfitPercent;
 
         // Configuration
         private List<double> entryLevels;
@@ -46,18 +43,14 @@ namespace StrategyManagement
         // Trading state
         private int currentPosition;
         private double averageEntryPrice;
-        private DateTime lastTradeTime;
         private readonly Queue<double> priceWindow;
         private double movingAverage;
         private double signal;
         private DateTime currentDate;
 
-        private double minimumThreshold;
-        private double maximumThreshold;
-        private double lookBackPeriod;
         private double dailyMad;
         private double mad;
-        private bool isStatisticsReady;
+
 
         private Dictionary<int, int> order2LevelId = new Dictionary<int, int>();
 
@@ -69,7 +62,6 @@ namespace StrategyManagement
         {
             Name = "multilevel";
             this.tradeInstrument = tradeInstrument;
-            barHistory = new Queue<Bar>();
             currentPosition = 0;
             averageEntryPrice = 0;
             priceWindow = new Queue<double>();
@@ -88,13 +80,11 @@ namespace StrategyManagement
             // Set default values
             lookbackPeriod = 10;
 
-            stopLossPercent = 0.02;
-            takeProfitPercent = 0.05;
             isMeanReverting = false;
 
             // Initialize level manager
             levelManager = new LevelManager(entryLevels, exitLevels, isMeanReverting);
-            levelManager.MaxConcurrentLevels = 10;
+            levelManager.MaxConcurrentLevels = 3;
 
             Console.WriteLine($"Strategy {Name} initialized with {entryLevels.Count} entry levels and {exitLevels.Count} exit levels");
         }
@@ -180,7 +170,7 @@ namespace StrategyManagement
 
             // Check for long entries - explicit logic, no abstraction
             // Simple position limit check
-            bool positionCheck = levelManager.ActiveLevelCount < levelManager.MaxConcurrentLevels;
+            bool positionCheck = levelManager.ActiveLevelCount <= levelManager.MaxConcurrentLevels;
 
             // Simple time check
             bool timeCheck = IsWithinTradingHours(bar.DateTime);
