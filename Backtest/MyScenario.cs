@@ -66,8 +66,17 @@ namespace OpenQuant
             // Handle comma-separated values if present
             string[] splitString = parameterFile.Split(',');
             parameterFile = splitString[0];
+            StrategyManager.Global["tag"] = splitString[0];
+            string jsonPath = "";
 
-            string jsonPath = Path.Combine(TRADE_ROOT, parameterFile + ".json");
+            if (args.Length == 1)
+            {
+                jsonPath = Path.Combine(TRADE_ROOT, parameterFile + ".json");
+            }
+            else
+            {
+                jsonPath = @"D:\test_tags\" + splitString[0] + ".json";
+            }
 
             Console.WriteLine($"Loading parameters from: {jsonPath}");
 

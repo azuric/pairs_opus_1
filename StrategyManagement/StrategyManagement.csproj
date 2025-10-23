@@ -31,6 +31,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="MathNet.Numerics, Version=6.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\MathNet.Numerics.6.0.0-beta2\lib\net48\MathNet.Numerics.dll</HintPath>
+    </Reference>
     <Reference Include="SmartQuant, Version=1.2.0.1, Culture=neutral, PublicKeyToken=023ca4f8a69375d5, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\..\..\..\..\Program Files\SmartQuant Ltd\OpenQuant 2014\SmartQuant.dll</HintPath>
@@ -52,6 +55,7 @@
     <Compile Include="Interfaces\IStrategyManager.cs" />
     <Compile Include="Interfaces\ITradeManager.cs" />
     <Compile Include="Managers\BaseStrategyManager.cs" />
+    <Compile Include="Managers\MomStrategyManager.cs" />
     <Compile Include="Managers\MomentumMultiLevelStrategyManager.cs" />
     <Compile Include="Managers\MomPairUSStrategyManager.cs" />
     <Compile Include="Managers\MomPairStrategyManager.cs" />
@@ -64,7 +68,9 @@
     <Compile Include="SignalSource.cs" />
     <Compile Include="StrategyManagerFactory.cs" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Paramters\Parameters.csproj">
       <Project>{3282978d-4c49-4fb8-aa99-2670f110cfc4}</Project>

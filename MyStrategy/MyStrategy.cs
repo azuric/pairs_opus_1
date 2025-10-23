@@ -15,6 +15,7 @@ namespace OpenQuant
         private IStrategyManager strategyManager;
         private ITradeManager tradeManager;
         private DisplayParameters displayParameters;
+        private AlphaManager alphaManager;
 
         public StrategyParameters StrategyParameters;
         public IPositionManager PositionManager => strategyManager?.PositionManager;
@@ -87,6 +88,8 @@ namespace OpenQuant
 
             this.StrategyParameters = strategyManager.Parameters;
             this.displayParameters = new DisplayParameters(this.Name);
+
+            this.alphaManager = new AlphaManager();
 
             isInitialized = true;
         }
@@ -227,6 +230,24 @@ namespace OpenQuant
         {
             strategyManager.OnStrategyStop();
             Console.WriteLine($"Strategy {Name} stopped");
+
+            string _fn = @"D:\test_pl\" + Global["tag"] + @"\";
+
+            Directory.CreateDirectory(Path.GetDirectoryName(_fn));
+
+;
+            fs = new FileStream(
+                _fn + numeratorInstrument.Bar.CloseDateTime.ToString("yyyyMMdd") +
+                ".csv", FileMode.Append, FileAccess.Write, FileShare.Write);
+
+            StreamWriter _sw = new StreamWriter(fs);
+            {
+                _sw.WriteLine(
+                    numeratorInstrument.Bar.CloseDateTime.ToString("yyyy-MM-dd") +
+                    "," + Portfolio.Statistics.Get(PortfolioStatisticsType.NetProfit).TotalValue + "," +
+                    numeratorInstrument.Symbol + "," + numeratorInstrument.Symbol);
+                _sw.Close();
+            }
         }
 
         protected override void OnBar(Bar bar)
@@ -243,7 +264,7 @@ namespace OpenQuant
             // Check for new day
             if (bar.DateTime.Date > lastDayDateTime)
             {
-                //NewDay(bar);
+                NewDay(bar);
                 lastDayDateTime = bar.DateTime.Date;
             }
 
@@ -256,7 +277,11 @@ namespace OpenQuant
                 // Log, update display, etc.
                 Log(bar, barGroup, bar.DateTime);
 
+                Bars.Add(bar);
+
                 UpdateDisplayParameters(bar);
+
+                alphaManager.Update(Bars);
 
                 // Pass array to strategy manager
                 strategyManager.ProcessBar(barsToProcess);
@@ -264,46 +289,47 @@ namespace OpenQuant
                 strategyManager.OnBar(barsToProcess);
 
                 // Check reconciliation
-                if(StrategyParameters.useCheckAndReconcile) 
+                if (StrategyParameters.useCheckAndReconcile)
                     CheckAndReconcilePositions(barsToProcess);
 
             }
         }
 
-        //// Fixed: Added missing NewDay method
-        //private void NewDay(Bar bar)
-        //{
-        //    Console.WriteLine($"New trading day: {bar.DateTime.Date}");
-        //    WriteDataForNewDay(bar.DateTime);
+        // Fixed: Added missing NewDay method
+        private void NewDay(Bar bar)
+        {
+            Console.WriteLine($"New trading day: {bar.DateTime.Date}");
+            WriteDataForNewDay(bar.DateTime);
 
-        //    // Add any other new day initialization logic here
-        //    // For example, reset daily counters, logs, etc.
-        //}
+            // Add any other new day initialization logic here
+            // For example, reset daily counters, logs, etc.
+        }
 
-        //private void WriteDataForNewDay(DateTime datetime)
-        //{
-        //    if (!StrategyParameters.is_writing)
-        //        return;
+        private void WriteDataForNewDay(DateTime datetime)
+        {
+            if (!StrategyParameters.is_writing)
+                return;
 
-        //    string _fd = StrategyParameters.data_file + @"\Data\" + tradeInstrumentSymbol + @"_\";
-        //    Directory.CreateDirectory(Path.GetDirectoryName(_fd));
+            string _fd = StrategyParameters.data_file + @"\Data\" + tradeInstrumentSymbol + @"_\";
+            Directory.CreateDirectory(Path.GetDirectoryName(_fd));
 
-        //    fs = new FileStream(_fd + "\\data_" + "_" + datetime.ToString("yyyyMMdd") + ".csv", FileMode.Append, FileAccess.Write, FileShare.Write);
+            fs = new FileStream(_fd + "\\data_" + "_" + datetime.ToString("yyyyMMdd") + ".csv", FileMode.Append, FileAccess.Write, FileShare.Write);
 
-        //    StreamWriter _sw = new StreamWriter(fs);
-        //    {
-        //        // Fixed: Changed iManager to strategyManager and added null check
-        //        if (strategyManager != null && strategyManager is BaseStrategyManager baseManager)
-        //        {
-        //            // Note: You'll need to ensure historicAlphas exists in your BaseStrategyManager
-        //            // or replace this with the correct property/method
-        //            var historicAlphas = baseManager.GetHistoricAlphas(); // Assuming this method exists
-        //            for (int _i = 0; _i < historicAlphas.Count; _i++)
-        //                _sw.WriteLine(historicAlphas[_i]);
-        //        }
-        //        _sw.Close();
-        //    }
-        //}
+            StreamWriter _sw = new StreamWriter(fs);
+            {
+                if (alphaManager != null)
+                {
+                    var alphaList = alphaManager.AlphaList;
+
+                    for (int _i = 0; _i < alphaList.Count; _i++)
+                        _sw.WriteLine(alphaList[_i]);
+                }
+                _sw.Close();
+            }
+
+            alphaManager.AlphaList.Clear();
+
+        }
 
         // Fixed: Added proper return value and parameter
         private bool ExcludeDates(Bar bar)
@@ -567,5 +593,6 @@ namespace OpenQuant
         {
             Console.WriteLine($"Order {order.Id} status: {order.Status}");
         }
+
     }
 }

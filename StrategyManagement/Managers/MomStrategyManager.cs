@@ -3,10 +3,14 @@ using System.Collections.Generic;
 using SmartQuant;
 using Parameters;
 using SmartQuant.Strategy_;
+using SmartQuant.Component;
+using System.Linq;
+using MathNet.Numerics.LinearAlgebra;
+using System.Security.Cryptography;
 
 namespace StrategyManagement
 {
-    public class MeanReversionStrategyManager : BaseStrategyManager
+    public class MomStrategyManager : BaseStrategyManager
     {
         // Statistics
         private readonly Queue<double> priceWindow;
@@ -18,8 +22,20 @@ namespace StrategyManagement
         private double stopLossPercent;
         private double takeProfitPercent;
         private bool isStatisticsReady;
+        private int FeatureCount { get; set; }
+        public double[] Features { get; private set; }
+        public Matrix<double> BinsMatrix { get; private set; }
+        public double[] WeightsArray { get; protected set; }
 
-        public MeanReversionStrategyManager(Instrument tradeInstrument) : base("mean_reversion", tradeInstrument)
+        private double dailyMad;
+        private double mad;
+
+        private DateTime currentDate;
+        private double signal_ma;
+        private double signal;
+        private double alpha;
+
+        public MomStrategyManager(Instrument tradeInstrument) : base("Mom", tradeInstrument)
         {
             priceWindow = new Queue<double>();
             isStatisticsReady = false;
@@ -30,11 +46,13 @@ namespace StrategyManagement
             base.Initialize(parameters); // This now handles both signal and trade configuration
 
             // Existing parameter initialization...
-            lookbackPeriod = 120;
-            entryThreshold = 2.0;
-            exitThreshold = 0.1;
+            lookbackPeriod = 240;
+            entryThreshold = 0.5;
+            exitThreshold = 0.01;
             stopLossPercent = 0.03;
             takeProfitPercent = 0.05;
+
+            alpha = 2.0 / (lookbackPeriod + 1.0);
 
             // Parse strategy-specific parameters...
             // (existing parameter parsing code)
@@ -51,6 +69,64 @@ namespace StrategyManagement
 
             // NEW: Validate configuration
             ValidateSignalTradeConfiguration();
+
+            FeatureCount = (int)parameters.additional_params["featureCount"];
+
+            List<List<double>> Bins = null;
+
+            Bins = ConvertParametersToBins(parameters);
+
+            // Load and process bins from JSON
+            double[][] binsArray = new double[FeatureCount][];
+
+            if (Bins != null)
+            {
+                binsArray = Bins.ConvertAll(sublist => sublist.ToArray()).ToArray();
+
+                // Optional: Print bins for debugging
+                foreach (double[] bin in binsArray)
+                {
+                    Console.WriteLine($"[{string.Join(", ", bin)}]");
+                }
+            }
+
+            // Convert and create bins matrix
+            var binsArray_ = ConvertJaggedToMulti(binsArray);
+            BinsMatrix = Matrix<double>.Build.DenseOfArray(binsArray_);
+
+            Console.WriteLine("Matrix from JSON using Math.NET Numerics:");
+            Console.WriteLine(BinsMatrix.ToString());
+
+            // Load weights from JSON
+            WeightsArray = new double[FeatureCount * 4];
+
+            List<double> Weights = null;
+
+            Weights = ConvertParametersToWeights(parameters);
+
+            if (Weights != null)
+            {
+                WeightsArray = Weights.ToArray();
+            }
+
+            // Initialize features
+            Features = new double[FeatureCount];
+        }
+
+        private List<double> ConvertParametersToWeights(StrategyParameters parameters)
+        {
+            if(parameters.additional_params.ContainsKey("weights"))
+                return (List<double>)parameters.additional_params["weights"];
+
+            return null;
+        }
+
+        public List<List<double>> ConvertParametersToBins(StrategyParameters parameters)
+        {
+            if(parameters.additional_params.ContainsKey("bins"))
+                return (List<List<double>>)parameters.additional_params["bins"];
+
+            return null;
         }
 
         // NEW: Validation method
@@ -121,8 +197,12 @@ namespace StrategyManagement
         {
             Bar signalBar = GetSignalBar(bars);
 
+            signal_ma = EMA(alpha, signalBar.Close, signal_ma);
+
             // Update statistics
             priceWindow.Enqueue(signalBar.Close);
+
+            signal = 10000*((signalBar.Close / signal_ma) - 1.0);
 
             if (priceWindow.Count > lookbackPeriod)
             {
@@ -133,6 +213,20 @@ namespace StrategyManagement
             {
                 CalculateStatistics();
                 isStatisticsReady = true;
+
+                if (signalBar.CloseDateTime.Date != currentDate)
+                {
+                    dailyMad = mad;
+                    currentDate = signalBar.CloseDateTime.Date;
+                    mad = Math.Abs(signal);
+
+                    isStatisticsReady = true;
+                }
+                else if (Math.Abs(signal) > mad)
+                {
+                    mad = Math.Abs(signal);
+                }
+
             }
 
             // Update metrics
@@ -162,9 +256,9 @@ namespace StrategyManagement
             double deviation = (signalBar.Close - movingAverage) / standardDeviation;
 
             if (currentPosition > 0)
-                return deviation > -exitThreshold;
+                return signal < exitThreshold;
             else
-                return deviation < exitThreshold;
+                return signal > -exitThreshold;
         }
 
         public override bool ShouldEnterLongPosition(Bar[] bars)
@@ -177,8 +271,8 @@ namespace StrategyManagement
             if (!isStatisticsReady)
                 return false;
 
-            double deviation = (signalBar.Close - movingAverage) / standardDeviation;
-            return deviation < -entryThreshold;
+            //double deviation = (signalBar.Close - movingAverage) / standardDeviation;
+            return signal > mad*entryThreshold;
         }
 
         public override bool ShouldEnterShortPosition(Bar[] bars)
@@ -191,8 +285,8 @@ namespace StrategyManagement
             if (!isStatisticsReady)
                 return false;
 
-            double deviation = (signalBar.Close - movingAverage) / standardDeviation;
-            return deviation > entryThreshold;
+            //double deviation = (signalBar.Close - movingAverage) / standardDeviation;
+            return signal < -mad*entryThreshold;
         }
 
         public override bool ShouldExitLongPosition(Bar[] bars)
@@ -214,11 +308,9 @@ namespace StrategyManagement
             double sum = 0;
             foreach (var price in priceWindow)
                 sum += price;
-
             movingAverage = sum / priceWindow.Count;
 
             double sumSquaredDeviations = 0;
-
             foreach (var price in priceWindow)
                 sumSquaredDeviations += Math.Pow(price - movingAverage, 2);
             standardDeviation = Math.Sqrt(sumSquaredDeviations / priceWindow.Count);
@@ -227,7 +319,6 @@ namespace StrategyManagement
         private double CalculateUnrealizedPnLPercent(double currentPrice)
         {
             var theoManager = DualPositionManager?.TheoPositionManager;
-
             if (theoManager == null || theoManager.CurrentPosition == 0)
                 return 0;
 
@@ -235,6 +326,120 @@ namespace StrategyManagement
                 return (currentPrice - theoManager.AveragePrice) / theoManager.AveragePrice;
             else
                 return (theoManager.AveragePrice - currentPrice) / theoManager.AveragePrice;
+        }
+
+        private double EMA(double alpha, double x, double ema_x)
+        {
+            if (!double.IsNaN(ema_x))
+                return ema_x += alpha * (x - ema_x);
+            else
+                return x;
+        }
+
+        // Feature update method
+        public void UpdateFeatures(Double[][] dataArray)
+        {
+            Features = dataArray.SelectMany(subArray => subArray).ToArray();
+
+            if (Features.Length > 0)
+            {
+                double[] featureVector = GetBinnedFeaturesArray(BinsMatrix, Features);
+
+                double sum = 0;
+                for (int i = 0; i < featureVector.Length; i++)
+                {
+                    sum += featureVector[i] * WeightsArray[i];
+                }
+            }
+        }
+
+        // Binning methods
+        public Matrix<double> GetBins(Matrix<double> bin, double[] alphas)
+        {
+            int rows = bin.RowCount;
+            int cols = bin.ColumnCount;
+            int bins = bin.ColumnCount - 1;
+
+            var outputMatrix = Matrix<double>.Build.Dense(rows, bins);
+
+            for (int i = 0; i < rows; i++)
+            {
+                for (int j = 0; j < cols; j++)
+                {
+                    double value = alphas[i];
+
+                    for (int b = 0; b < bins; b++)
+                    {
+                        if (value > bin[i, b] && value <= bin[i, b + 1])
+                        {
+                            outputMatrix[i, b] = 1.0;
+                        }
+                        else
+                        {
+                            outputMatrix[i, b] = 0;
+                        }
+                    }
+                }
+            }
+
+            return outputMatrix;
+        }
+
+        public double[] GetBinnedFeaturesArray(Matrix<double> bin, double[] alphas)
+        {
+            int rows = bin.RowCount;
+            int cols = bin.ColumnCount;
+            int bins = bin.ColumnCount - 1;
+
+            var outputMatrix = new double[FeatureCount * 4];
+            int index = 0;
+
+            for (int i = 0; i < FeatureCount; i++)
+            {
+                for (int j = 0; j < 4; j++)
+                {
+                    double value = alphas[i];
+
+                    if (value > bin[i, j] && value <= bin[i, j + 1])
+                    {
+                        outputMatrix[index] = 1.0;
+                    }
+                    else
+                    {
+                        outputMatrix[index] = 0.0;
+                    }
+                    index++;
+                }
+            }
+            return outputMatrix;
+        }
+
+        // Utility method for array conversion
+        public double[,] ConvertJaggedToMulti(double[][] jaggedArray)
+        {
+            if (jaggedArray.Length == 0 || jaggedArray[0].Length == 0)
+            {
+                throw new ArgumentException("The jagged array is empty or the first row is empty.");
+            }
+
+            int rows = jaggedArray.Length;
+            int cols = jaggedArray[0].Length;
+
+            double[,] multiArray = new double[rows, cols];
+
+            for (int i = 0; i < rows; i++)
+            {
+                if (jaggedArray[i].Length != cols)
+                {
+                    throw new ArgumentException($"Row {i} does not match the expected length of {cols}.");
+                }
+
+                for (int j = 0; j < cols; j++)
+                {
+                    multiArray[i, j] = jaggedArray[i][j];
+                }
+            }
+            return multiArray;
         }
     }
 }

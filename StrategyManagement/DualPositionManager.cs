@@ -22,7 +22,7 @@ namespace StrategyManagement
             // Create two separate position managers with different file names
             theoPositionManager = new PositionManager(
                 parameters,
-                $"{strategyName}_theo",
+                $"{strategyName}_theo_" + parameters.trade_instrument,
                 "theo_trades.csv"
             );
 

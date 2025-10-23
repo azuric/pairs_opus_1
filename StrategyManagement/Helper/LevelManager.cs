@@ -122,29 +122,33 @@ namespace StrategyManagement
         /// <summary>
         /// Create and activate a new level
         /// </summary>
-        public Level CreateLevel(int entryLevel, double entryThreshold, OrderSide side, int positionSize,
+        public bool CreateLevel(int entryLevel, double entryThreshold, OrderSide side, int positionSize,
                                 double entryPrice, double actualSignal, DateTime dateTime)
         {
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.CreateLevel - Creating level: EntryLevel={entryLevel}, Threshold={entryThreshold}, Side={side}");
 
             int levelId = currentLevelId;
             currentLevelId++;
+            if (Levels[entryLevel] == null)
+            {
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.CreateLevel - Assigned level ID: {levelId}");
 
-            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.CreateLevel - Assigned level ID: {levelId}");
+                var level = new Level(levelId, entryThreshold, ExitLevels, IsMeanReverting);
 
-            var level = new Level(levelId, entryThreshold, ExitLevels, IsMeanReverting);
+                level.ExecuteEntry(dateTime, side, positionSize, entryPrice, actualSignal);
 
-            level.ExecuteEntry(dateTime, side, positionSize, entryPrice, actualSignal);
+                Levels[entryLevel] = level;
+                ActiveLevels[levelId] = level;
+                ActiveLevels2Levels[levelId] = entryLevel;
 
-            Levels[entryLevel] = level;
-            ActiveLevels[levelId] = level;
-            ActiveLevels2Levels[levelId] = entryLevel;
+                ActiveLevelCount++;
 
-            ActiveLevelCount++;
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.CreateLevel - Level {levelId} activated. Total active levels: {ActiveLevels.Count}");
 
-            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.CreateLevel - Level {levelId} activated. Total active levels: {ActiveLevels.Count}");
+                return true;
 
-            return level;
+            }
+            return false;
         }
 
         /// <summary>
@@ -197,7 +201,17 @@ namespace StrategyManagement
                 Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ExecuteExit - Level {levelId} is now complete, moving to completed levels");
                 CompletedLevels.Add(level);
                 ActiveLevels.Remove(levelId);
-                Levels[ActiveLevels2Levels[levelId]] = null;
+
+                // Update the Levels array and decrement ActiveLevelCount
+                if (ActiveLevels2Levels.ContainsKey(levelId))
+                {
+                    int levelIndex = ActiveLevels2Levels[levelId];
+                    Levels[levelIndex] = null;
+                    ActiveLevels2Levels.Remove(levelId);
+                    ActiveLevelCount--;
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ExecuteExit - Level {levelId} removed from Levels[{levelIndex}], ActiveLevelCount decremented to {ActiveLevelCount}");
+                }
+
                 Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ExecuteExit - Active levels count: {ActiveLevels.Count}, Completed levels count: {CompletedLevels.Count}");
             }
 
@@ -323,18 +337,69 @@ namespace StrategyManagement
         }
 
         /// <summary>
+        /// Force exit a specific level with the given size
+        /// </summary>
+        public void ForceExitLevel(int levelId, int exitSize, double exitPrice, DateTime dateTime)
+        {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ForceExitLevel - Force exiting level {levelId} with size {exitSize}");
+
+            if (!ActiveLevels.ContainsKey(levelId))
+            {
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ForceExitLevel - Level {levelId} not found in active levels");
+                return;
+            }
+
+            var level = ActiveLevels[levelId];
+
+            // Force exit by setting current position to zero
+            level.CurrentPosition = 0;
+
+            // Mark level as complete and clean up
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ForceExitLevel - Level {levelId} force exited, moving to completed levels");
+            CompletedLevels.Add(level);
+            ActiveLevels.Remove(levelId);
+
+            // Update the Levels array and decrement ActiveLevelCount
+            if (ActiveLevels2Levels.ContainsKey(levelId))
+            {
+                int levelIndex = ActiveLevels2Levels[levelId];
+                Levels[levelIndex] = null;
+                ActiveLevels2Levels.Remove(levelId);
+                ActiveLevelCount--;
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ForceExitLevel - Level {levelId} removed from Levels[{levelIndex}], ActiveLevelCount decremented to {ActiveLevelCount}");
+            }
+        }
+
+        /// <summary>
         /// Force close all levels (emergency exit)
         /// </summary>
         public List<Level> ForceCloseAllLevels()
         {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ForceCloseAllLevels - Force closing all {ActiveLevels.Count} active levels");
+
             var levelsToClose = ActiveLevels.Values.ToList();
 
             foreach (var level in levelsToClose)
             {
                 CompletedLevels.Add(level);
+                level.CurrentPosition = 0; // Force position to zero
             }
 
+            // Clear all tracking structures
             ActiveLevels.Clear();
+            ActiveLevels2Levels.Clear();
+
+            // Clear the Levels array
+            for (int i = 0; i < Levels.Length; i++)
+            {
+                Levels[i] = null;
+            }
+
+            // Reset active level count
+            ActiveLevelCount = 0;
+
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] LevelManager.ForceCloseAllLevels - All levels closed, ActiveLevelCount reset to {ActiveLevelCount}");
+
             return levelsToClose;
         }
 

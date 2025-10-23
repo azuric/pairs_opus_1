@@ -105,7 +105,9 @@ namespace StrategyManagement
         public override void ProcessBar(Bar[] bars)
         {
             Bar signalBar = GetSignalBar(bars);
+
             CancelCurrentOrder();
+
             int currentTheoPosition = GetCurrentTheoPosition();
 
             if (Math.Abs(currentTheoPosition) > 1)

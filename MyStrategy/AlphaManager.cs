@@ -127,6 +127,8 @@ namespace OpenQuant
         protected double CalculateRange(BarSeries bars, string period)
         {
             int periodValue = Convert.ToInt32(period);
+            if (bars.Count < periodValue)
+                return Double.NaN;
 
             double high = bars.HighestHigh(periodValue);
             double low = bars.LowestLow(periodValue);
@@ -227,8 +229,13 @@ namespace OpenQuant
 
         public void Update(BarSeries bars) 
         {
+            if (bars == null) return;
+
+            if (bars.Count <= 2) return;
+                
             int instrumentIndex = GetInstrumentIndex(bars);
             Bar currentBar = bars.Last;
+
             Bar previousBar = bars.Ago(1);
             ProcessBar(currentBar, previousBar);
             UpdateDirectionalMetrics(bars);
@@ -255,6 +262,8 @@ namespace OpenQuant
 
             AlphaList.Add(sb.ToString());
         }
+
+
 
         protected virtual int GetInstrumentIndex(BarSeries series)
         {

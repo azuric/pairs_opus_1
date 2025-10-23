@@ -19,6 +19,9 @@ namespace StrategyManagement
                 case "mean_reversion":
                     return new MeanReversionStrategyManager(tradeInstrument);
 
+                case "mom":
+                    return new MomStrategyManager(tradeInstrument);
+
                 case "mom_pair":
                     return new MomPairStrategyManager(tradeInstrument);
 
@@ -64,6 +67,9 @@ namespace StrategyManagement
 
                 if (nameLower.Contains("mean") || nameLower.Contains("reversion"))
                     return "mean_reversion";
+
+                if (nameLower.Contains("mom"))
+                    return "mom";
 
                 if (nameLower.Contains("momentum") || nameLower.Contains("trend"))
                     return "momentum";

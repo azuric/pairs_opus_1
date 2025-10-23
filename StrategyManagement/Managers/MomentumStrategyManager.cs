@@ -27,7 +27,7 @@ namespace StrategyManagement
         {
             base.Initialize(parameters);
 
-            momentumPeriod = 10;
+            momentumPeriod = 120;
             entryMomentumThreshold = 0.02;
             exitMomentumThreshold = 0.0;
             stopLossPercent = 0.02;
@@ -111,11 +111,12 @@ namespace StrategyManagement
                 return true;
 
             double pnlPercent = CalculatePnLPercent(signalBar.Close);
-            if (pnlPercent < -stopLossPercent || pnlPercent > takeProfitPercent)
-                return true;
+            //if (pnlPercent < -stopLossPercent || pnlPercent > takeProfitPercent)
+            //    return true;
 
             if (position > 0)
                 return currentMomentum < exitMomentumThreshold;
+
             else if (position < 0)
                 return currentMomentum > -exitMomentumThreshold;
 
