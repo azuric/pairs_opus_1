@@ -36,6 +36,10 @@ namespace StrategyManagement.Managers
         public double[] WeightsArray { get; protected set; }
         public double[] Data { get; private set; }
         private double filterThreshold;  // Entry threshold for filter (0.10 for Buy, 0.25 for Sell)
+        private bool longSignalActive;
+        private bool longSignalFilterPassed;
+        private bool shortSignalActive;
+        private bool shortSignalFilterPassed;
 
         public MomStrategyManagerFilter(Instrument tradeInstrument) : base("mom_filter", tradeInstrument)
         {
@@ -168,17 +172,25 @@ namespace StrategyManagement.Managers
             }
 
             // Check entries
+            // In OnBar() after entry
             if (currentTheoPosition == 0 && !HasLiveOrder())
             {
                 if (ShouldEnterLongPosition(bars))
                 {
                     ExecuteTheoreticalEntry(bars, OrderSide.Buy);
+                    // Reset flag so we don't re-enter until signal resets
+                    longSignalActive = false;
+                    longSignalFilterPassed = false;
                 }
                 else if (ShouldEnterShortPosition(bars))
                 {
                     ExecuteTheoreticalEntry(bars, OrderSide.Sell);
+                    // Reset flag so we don't re-enter until signal resets
+                    shortSignalActive = false;
+                    shortSignalFilterPassed = false;
                 }
             }
+
 
             // Update metrics
             UpdateMetrics(signalBar);
@@ -256,15 +268,29 @@ namespace StrategyManagement.Managers
             if (!isStatisticsReady)
                 return false;
 
-            // Check momentum signal
-            if (signal <= mad * entryThreshold)
-                return false;
+            // Check if signal is above threshold
+            bool signalTriggered = signal > mad * entryThreshold;
 
-            // Apply filter
-            if (!PassesFilter())
-                return false;
+            // If signal just crossed threshold (wasn't active before)
+            if (signalTriggered && !longSignalActive)
+            {
+                // NEW SIGNAL - Check filter
+                longSignalActive = true;
+                longSignalFilterPassed = PassesFilter();
 
-            return true;
+                Console.WriteLine($"[NEW LONG SIGNAL] Time={signalBar.DateTime:HH:mm:ss}, Signal={signal:F2}, Filter={longSignalFilterPassed}");
+            }
+
+            // If signal dropped below threshold, reset
+            if (!signalTriggered && longSignalActive)
+            {
+                longSignalActive = false;
+                longSignalFilterPassed = false;
+                Console.WriteLine($"[LONG SIGNAL RESET] Time={signalBar.DateTime:HH:mm:ss}");
+            }
+
+            // Only enter if signal is active AND filter passed
+            return longSignalActive && longSignalFilterPassed;
         }
 
         public override bool ShouldEnterShortPosition(Bar[] bars)
@@ -278,16 +304,31 @@ namespace StrategyManagement.Managers
             if (!isStatisticsReady)
                 return false;
 
-            // Check momentum signal
-            if (signal >= -mad * entryThreshold)
-                return false;
+            // Check if signal is below threshold
+            bool signalTriggered = signal < -mad * entryThreshold;
 
-            // Apply filter (use same filter for now, can be different for Sell)
-            if (!PassesFilter())
-                return false;
+            // If signal just crossed threshold (wasn't active before)
+            if (signalTriggered && !shortSignalActive)
+            {
+                // NEW SIGNAL - Check filter
+                shortSignalActive = true;
+                shortSignalFilterPassed = PassesFilter();
 
-            return true;
+                Console.WriteLine($"[NEW SHORT SIGNAL] Time={signalBar.DateTime:HH:mm:ss}, Signal={signal:F2}, Filter={shortSignalFilterPassed}");
+            }
+
+            // If signal dropped above threshold, reset
+            if (!signalTriggered && shortSignalActive)
+            {
+                shortSignalActive = false;
+                shortSignalFilterPassed = false;
+                Console.WriteLine($"[SHORT SIGNAL RESET] Time={signalBar.DateTime:HH:mm:ss}");
+            }
+
+            // Only enter if signal is active AND filter passed
+            return shortSignalActive && shortSignalFilterPassed;
         }
+
 
         // FILTER LOGIC
         private bool PassesFilter()

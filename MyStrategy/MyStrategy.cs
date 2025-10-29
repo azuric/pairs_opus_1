@@ -92,7 +92,7 @@ namespace OpenQuant
             this.StrategyParameters = strategyManager.Parameters;
             this.displayParameters = new DisplayParameters(this.Name);
 
-            this.alphaManager = new AlphaManager();
+            //this.alphaManager = new AlphaManager();
 
             isInitialized = true;
         }
