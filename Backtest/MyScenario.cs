@@ -69,7 +69,7 @@ namespace OpenQuant
             StrategyManager.Global["tag"] = splitString[0];
             string jsonPath = "";
 
-            if (args.Length == 1)
+            if (args.Length == 2)
             {
                 jsonPath = Path.Combine(TRADE_ROOT, parameterFile + ".json");
             }
@@ -86,6 +86,7 @@ namespace OpenQuant
             }
 
             string jsonContent = File.ReadAllText(jsonPath);
+            
             strategyParametersList = JsonConvert.DeserializeObject<StrategyParameterList>(jsonContent);
 
             if (strategyParametersList?.strategyParamList == null || strategyParametersList.strategyParamList.Count == 0)
@@ -230,6 +231,7 @@ namespace OpenQuant
 
             // Get instrument
             Instrument instrument = InstrumentManager.Instruments[parameters.trade_instrument];
+
             if (instrument == null)
             {
                 throw new ArgumentException($"Instrument {parameters.trade_instrument} not found in InstrumentManager");

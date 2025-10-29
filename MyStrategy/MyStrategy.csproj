@@ -41,7 +41,6 @@
     <Reference Include="SmartQuant" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AlphaManager.cs" />
     <Compile Include="MyStrategy.cs" />
     <Compile Include="MyStrategyHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

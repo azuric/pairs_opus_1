@@ -7,6 +7,7 @@ using SmartQuant.Component;
 using System.Linq;
 using MathNet.Numerics.LinearAlgebra;
 using System.Security.Cryptography;
+using Newtonsoft.Json.Linq;
 
 namespace StrategyManagement
 {
@@ -26,6 +27,7 @@ namespace StrategyManagement
         public double[] Features { get; private set; }
         public Matrix<double> BinsMatrix { get; private set; }
         public double[] WeightsArray { get; protected set; }
+        public double[] Data { get; private set; }
 
         private double dailyMad;
         private double mad;
@@ -70,7 +72,7 @@ namespace StrategyManagement
             // NEW: Validate configuration
             ValidateSignalTradeConfiguration();
 
-            FeatureCount = (int)parameters.additional_params["featureCount"];
+            FeatureCount = Convert.ToInt32(parameters.additional_params["featureCount"]);
 
             List<List<double>> Bins = null;
 
@@ -115,17 +117,49 @@ namespace StrategyManagement
 
         private List<double> ConvertParametersToWeights(StrategyParameters parameters)
         {
-            if(parameters.additional_params.ContainsKey("weights"))
-                return (List<double>)parameters.additional_params["weights"];
+            if (parameters.additional_params.ContainsKey("weights"))
+            {
+                var value = parameters.additional_params["weights"];
 
+                // If it's a JArray (from JSON deserialization)
+                if (value is JArray jArray)
+                    return jArray.ToObject<List<double>>();
+
+                // If it's already a list (unlikely but safe)
+                if (value is List<double> list)
+                    return list;
+
+                // If it's an IEnumerable
+                if (value is IEnumerable<object> enumerable)
+                    return enumerable.Select(x => Convert.ToDouble(x)).ToList();
+            }
             return null;
         }
 
         public List<List<double>> ConvertParametersToBins(StrategyParameters parameters)
         {
-            if(parameters.additional_params.ContainsKey("bins"))
-                return (List<List<double>>)parameters.additional_params["bins"];
+            if (parameters.additional_params.ContainsKey("bins"))
+            {
+                var value = parameters.additional_params["bins"];
 
+                // If it's a JArray (from JSON deserialization)
+                if (value is JArray jArray)
+                    return jArray.ToObject<List<List<double>>>();
+
+                // If it's already the right type
+                if (value is List<List<double>> list)
+                    return list;
+
+                // If it's a nested enumerable
+                if (value is IEnumerable<object> enumerable)
+                {
+                    return enumerable
+                        .Select(inner => ((IEnumerable<object>)inner)
+                            .Select(x => Convert.ToDouble(x))
+                            .ToList())
+                        .ToList();
+                }
+            }
             return null;
         }
 
@@ -161,7 +195,49 @@ namespace StrategyManagement
             }
         }
 
+        //metric logic
         public override void ProcessBar(Bar[] bars)
+        {
+            Bar signalBar = GetSignalBar(bars);
+
+            signal_ma = EMA(alpha, signalBar.Close, signal_ma);
+
+            // Update statistics
+            priceWindow.Enqueue(signalBar.Close);
+
+            signal = 10000 * ((signalBar.Close / signal_ma) - 1.0);
+
+            if (priceWindow.Count > lookbackPeriod)
+            {
+                priceWindow.Dequeue();
+            }
+
+            if (priceWindow.Count >= lookbackPeriod)
+            {
+                CalculateStatistics();
+                isStatisticsReady = true;
+
+                if (signalBar.CloseDateTime.Date != currentDate)
+                {
+                    dailyMad = mad;
+                    currentDate = signalBar.CloseDateTime.Date;
+                    mad = Math.Abs(signal);
+
+                    isStatisticsReady = true;
+                }
+                else if (Math.Abs(signal) > mad)
+                {
+                    mad = Math.Abs(signal);
+                }
+            }
+
+            Data = AlphaManager.GetData();
+
+        }
+
+
+        //trade logic
+        public override void OnBar(Bar[] bars)
         {
             Bar signalBar = GetSignalBar(bars);
 
@@ -190,43 +266,6 @@ namespace StrategyManagement
                 {
                     ExecuteTheoreticalEntry(bars, OrderSide.Sell);
                 }
-            }
-        }
-
-        public override void OnBar(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
-
-            signal_ma = EMA(alpha, signalBar.Close, signal_ma);
-
-            // Update statistics
-            priceWindow.Enqueue(signalBar.Close);
-
-            signal = 10000*((signalBar.Close / signal_ma) - 1.0);
-
-            if (priceWindow.Count > lookbackPeriod)
-            {
-                priceWindow.Dequeue();
-            }
-
-            if (priceWindow.Count >= lookbackPeriod)
-            {
-                CalculateStatistics();
-                isStatisticsReady = true;
-
-                if (signalBar.CloseDateTime.Date != currentDate)
-                {
-                    dailyMad = mad;
-                    currentDate = signalBar.CloseDateTime.Date;
-                    mad = Math.Abs(signal);
-
-                    isStatisticsReady = true;
-                }
-                else if (Math.Abs(signal) > mad)
-                {
-                    mad = Math.Abs(signal);
-                }
-
             }
 
             // Update metrics

@@ -1,6 +1,7 @@
 ﻿using System;
 using Parameters;
 using SmartQuant;
+using StrategyManagement.Managers;
 
 namespace StrategyManagement
 {
@@ -21,6 +22,9 @@ namespace StrategyManagement
 
                 case "mom":
                     return new MomStrategyManager(tradeInstrument);
+
+                case "mom_filter":
+                    return new MomStrategyManagerFilter(tradeInstrument);
 
                 case "mom_pair":
                     return new MomPairStrategyManager(tradeInstrument);
@@ -68,8 +72,13 @@ namespace StrategyManagement
                 if (nameLower.Contains("mean") || nameLower.Contains("reversion"))
                     return "mean_reversion";
 
+
+                if (nameLower.Contains("mom_filter"))
+                    return "mom_filter";
+
                 if (nameLower.Contains("mom"))
                     return "mom";
+
 
                 if (nameLower.Contains("momentum") || nameLower.Contains("trend"))
                     return "momentum";

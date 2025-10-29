@@ -80,10 +80,13 @@ namespace OpenQuant
 
             this.strategyManager = strategyManager;
             this.tradeManager = new StrategyManagement.TradeManager(this);
+            this.alphaManager = new AlphaManager();
 
             if (strategyManager is BaseStrategyManager baseManager)
             {
                 baseManager.SetTradeManager(tradeManager);
+
+                baseManager.SetAlphaManager(alphaManager);
             }
 
             this.StrategyParameters = strategyManager.Parameters;
@@ -114,7 +117,6 @@ namespace OpenQuant
             if (strategyManager is BaseStrategyManager baseManager)
             {
                 baseManager.SetTradingMode(isPairMode, tradeInstrumentId);
-
                 // NEW: Pass instrument order to strategy manager
                 baseManager.SetInstrumentOrder(instrumentOrder);
                 // UPDATED: Enhanced logging with new method names
@@ -235,19 +237,19 @@ namespace OpenQuant
 
             Directory.CreateDirectory(Path.GetDirectoryName(_fn));
 
-;
-            fs = new FileStream(
-                _fn + numeratorInstrument.Bar.CloseDateTime.ToString("yyyyMMdd") +
-                ".csv", FileMode.Append, FileAccess.Write, FileShare.Write);
+            
+            //fs = new FileStream(
+            //    _fn + numeratorInstrument.Bar.CloseDateTime.ToString("yyyyMMdd") +
+            //    ".csv", FileMode.Append, FileAccess.Write, FileShare.Write);
 
-            StreamWriter _sw = new StreamWriter(fs);
-            {
-                _sw.WriteLine(
-                    numeratorInstrument.Bar.CloseDateTime.ToString("yyyy-MM-dd") +
-                    "," + Portfolio.Statistics.Get(PortfolioStatisticsType.NetProfit).TotalValue + "," +
-                    numeratorInstrument.Symbol + "," + numeratorInstrument.Symbol);
-                _sw.Close();
-            }
+            //StreamWriter _sw = new StreamWriter(fs);
+            //{
+            //    _sw.WriteLine(
+            //        numeratorInstrument.Bar.CloseDateTime.ToString("yyyy-MM-dd") +
+            //        "," + Portfolio.Statistics.Get(PortfolioStatisticsType.NetProfit).TotalValue + "," +
+            //        numeratorInstrument.Symbol + "," + numeratorInstrument.Symbol);
+            //    _sw.Close();
+            //}
         }
 
         protected override void OnBar(Bar bar)

@@ -34,6 +34,9 @@
     <Reference Include="MathNet.Numerics, Version=6.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\MathNet.Numerics.6.0.0-beta2\lib\net48\MathNet.Numerics.dll</HintPath>
     </Reference>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="SmartQuant, Version=1.2.0.1, Culture=neutral, PublicKeyToken=023ca4f8a69375d5, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\..\..\..\..\Program Files\SmartQuant Ltd\OpenQuant 2014\SmartQuant.dll</HintPath>
@@ -48,9 +51,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AlphaManager.cs" />
     <Compile Include="DualPositionManager.cs" />
     <Compile Include="Helper\Level.cs" />
     <Compile Include="Helper\LevelManager.cs" />
+    <Compile Include="Interfaces\IAlphaMananger.cs" />
     <Compile Include="Interfaces\IPositionManager.cs" />
     <Compile Include="Interfaces\IStrategyManager.cs" />
     <Compile Include="Interfaces\ITradeManager.cs" />
@@ -61,6 +66,7 @@
     <Compile Include="Managers\MomPairStrategyManager.cs" />
     <Compile Include="Managers\MeanReversionStrategyManager.cs" />
     <Compile Include="Managers\MomentumStrategyManager.cs" />
+    <Compile Include="Managers\MomStrategyManagerFilter.cs" />
     <Compile Include="Managers\SimpleStrategyManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RefactoredPositionManager.cs" />

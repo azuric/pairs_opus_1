@@ -1,13 +1,14 @@
 ﻿using SmartQuant;
+using StrategyManagement;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OpenQuant
+namespace StrategyManagement
 {
-    public class AlphaManager
+    public class AlphaManager : IAlphaManager  // Added interface
     {
         protected readonly bool IsBar;
         protected DateTime CurrentDateTime;

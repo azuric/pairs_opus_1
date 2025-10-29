@@ -2,6 +2,7 @@
 using SmartQuant;
 using Parameters;
 
+
 namespace StrategyManagement
 {
     /// <summary>
@@ -40,7 +41,7 @@ namespace StrategyManagement
         /// <summary>
         /// Trade manager for order execution
         /// </summary>
-        //public AlphaManager AlphaManager { get; protected set; }
+        public AlphaManager AlphaManager { get; protected set; }
 
         #endregion
 
@@ -116,6 +117,16 @@ namespace StrategyManagement
         {
             TradeManager = tradeManager ?? throw new ArgumentNullException(nameof(tradeManager));
             Console.WriteLine($"Trade manager set for strategy {Name}");
+        }
+
+        /// <summary>
+        /// Set the alpha manager
+        /// </summary>
+        /// <param name="alphaManager">Alpha manager instance</param>
+        public void SetAlphaManager(AlphaManager alphaManager)
+        {
+            AlphaManager = alphaManager ?? throw new ArgumentNullException(nameof(alphaManager));
+            Console.WriteLine($"Alpha manager set for strategy {Name}");
         }
 
         /// <summary>
