@@ -138,7 +138,7 @@ namespace OpenQuant
             Console.WriteLine("\nConfiguring simulation settings...");
 
             // Set simulation date range
-            DataSimulator.DateTime1 = new DateTime(2017, 1, 1);
+            DataSimulator.DateTime1 = new DateTime(2022, 12, 27);
             DataSimulator.DateTime2 = new DateTime(2025, 12, 1);
 
             Console.WriteLine($"Simulation period: {DataSimulator.DateTime1:yyyy-MM-dd} to {DataSimulator.DateTime2:yyyy-MM-dd}");

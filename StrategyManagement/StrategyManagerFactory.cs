@@ -1,7 +1,7 @@
 ﻿using System;
 using Parameters;
 using SmartQuant;
-using StrategyManagement.Managers;
+using StrategyManagement;
 
 namespace StrategyManagement
 {
