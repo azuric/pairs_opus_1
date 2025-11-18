@@ -61,7 +61,7 @@ namespace StrategyManagement
 
         private double dailyMad;
         private double mad;
-        private int positionSize = 3; // Default position size per level
+        private int positionSize = 1; // Default position size per level
 
         private Dictionary<int, int> order2LevelId = new Dictionary<int, int>();
         private List<Level> levelList;
@@ -124,6 +124,7 @@ namespace StrategyManagement
             // Set default values
             lookbackPeriod = 10;
             isMeanReverting = false;
+            base.positionSize = 1; // Set base class position size to match
 
             // Initialize level manager
             levelManager = new LevelManager(entryLevels, exitLevels, isMeanReverting);
