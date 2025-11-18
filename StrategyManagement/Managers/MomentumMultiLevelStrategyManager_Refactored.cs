@@ -546,10 +546,7 @@ namespace StrategyManagement
                 {
                     order2LevelId[orderId] = level.Id;
                     level.AddOrder(orderId, LevelOrderType.Entry, positionSize, bar.Close);
-                    
-                    // Execute theoretical entry
-                    Bar[] bars = new Bar[] { bar };
-                    ExecuteTheoreticalEntry(bars, side);
+                    WriteLogLine($"  Order created and tracked");
                 }
                 else
                 {
