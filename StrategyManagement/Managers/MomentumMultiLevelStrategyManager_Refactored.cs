@@ -235,7 +235,8 @@ namespace StrategyManagement
                 foreach (var kvp in levelManager.ActiveLevels)
                 {
                     var level = kvp.Value;
-                    WriteLogLine($"  Level {level.Id} (Index {level.LevelIndex}): {level.Side}, Pos={level.CurrentPosition}, Entry={level.EntryPrice:F4}");
+                    int levelIndex = levelManager.ActiveLevels2Levels.ContainsKey(level.Id) ? levelManager.ActiveLevels2Levels[level.Id] : -1;
+                    WriteLogLine($"  Level {level.Id} (Index {levelIndex}): {level.Side}, Pos={level.CurrentPosition}, Entry={level.EntryPrice:F4}");
                 }
             }
 
@@ -285,7 +286,8 @@ namespace StrategyManagement
                         continue;
                     }
 
-                    WriteLogLine($"  Level {levelId} (Index {level.LevelIndex}): {exitLevelIndices.Count} exit levels triggered");
+                    int levelIndex = levelManager.ActiveLevels2Levels.ContainsKey(levelId) ? levelManager.ActiveLevels2Levels[levelId] : -1;
+                    WriteLogLine($"  Level {levelId} (Index {levelIndex}): {exitLevelIndices.Count} exit levels triggered");
 
                     foreach (var exitLevelIndex in exitLevelIndices)
                     {
@@ -442,7 +444,8 @@ namespace StrategyManagement
 
             foreach (var level in activeLevels)
             {
-                WriteLogLine($"  Force exiting Level {level.Id} (Index {level.LevelIndex}):");
+                int levelIndex = levelManager.ActiveLevels2Levels.ContainsKey(level.Id) ? levelManager.ActiveLevels2Levels[level.Id] : -1;
+                WriteLogLine($"  Force exiting Level {level.Id} (Index {levelIndex}):");
                 WriteLogLine($"    Current Position: {level.CurrentPosition}");
                 WriteLogLine($"    Entry Price: {level.EntryPrice:F4}");
                 WriteLogLine($"    Side: {level.Side}");
@@ -468,7 +471,7 @@ namespace StrategyManagement
                     levelManager.ForceExitLevel(level.Id, totalExitSize, bar.Close, bar.DateTime);
 
                     // Log order
-                    LogOrder(bar, "FORCE_EXIT", level.Id, level.LevelIndex, exitSide, bar.Close, totalExitSize);
+                    LogOrder(bar, "FORCE_EXIT", level.Id, levelIndex, exitSide, bar.Close, totalExitSize);
 
                     // Place order if we have a trade manager
                     if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
@@ -601,7 +604,8 @@ namespace StrategyManagement
             levelManager.ExecuteExit(levelId, exitLevelIndex, bar.Close, bar.DateTime);
 
             // Log order
-            LogOrder(bar, "EXIT", levelId, level.LevelIndex, exitSide, bar.Close, exitSize);
+            int levelIndex = levelManager.ActiveLevels2Levels.ContainsKey(levelId) ? levelManager.ActiveLevels2Levels[levelId] : -1;
+            LogOrder(bar, "EXIT", levelId, levelIndex, exitSide, bar.Close, exitSize);
 
             // Log trade if level is fully closed
             if (level.CurrentPosition == 0)
@@ -657,18 +661,19 @@ namespace StrategyManagement
         {
             if (tradeLogWriter != null)
             {
-                TimeSpan holdTime = exitBar.DateTime - level.EntryTime;
+                TimeSpan holdTime = exitBar.DateTime - level.EntryDateTime;
                 int holdBars = (int)(holdTime.TotalMinutes / 1); // Assuming 1-minute bars
 
                 double pnl = 0.0;
                 // Calculate total PnL from level's trade history
                 // This is simplified - you may want to track this in Level class
                 
-                string line = $"{level.Id},{level.LevelIndex}," +
-                    $"{level.EntryTime:yyyy-MM-dd HH:mm:ss},{exitBar.CloseDateTime:yyyy-MM-dd HH:mm:ss}," +
+                int levelIndex = levelManager.ActiveLevels2Levels.ContainsKey(level.Id) ? levelManager.ActiveLevels2Levels[level.Id] : -1;
+                string line = $"{level.Id},{levelIndex}," +
+                    $"{level.EntryDateTime:yyyy-MM-dd HH:mm:ss},{exitBar.CloseDateTime:yyyy-MM-dd HH:mm:ss}," +
                     $"{level.Side},{level.EntryPrice:F4},{exitBar.Close:F4}," +
-                    $"{level.InitialPosition},{pnl:F2},{level.EntrySignal:F6}," +
-                    $"{level.EntryLevel},{string.Join("|", exitLevels)},{holdBars}";
+                    $"{level.PositionSize},{pnl:F2},{level.ActualEntrySignal:F6}," +
+                    $"{level.EntrySignalThreshold},{string.Join("|", exitLevels)},{holdBars}";
                 tradeLogWriter.WriteLine(line);
                 tradeLogWriter.Flush();
             }
@@ -694,9 +699,11 @@ namespace StrategyManagement
                         else
                             pnl = (level.EntryPrice - bar.Close) * Math.Abs(level.CurrentPosition);
 
+                        int levelIndex = levelManager.ActiveLevels2Levels.ContainsKey(level.Id) ? levelManager.ActiveLevels2Levels[level.Id] : -1;
+                        int remainingQty = level.GetTotalRemainingExitQuantity();
                         string line = $"{barCounter},{bar.CloseDateTime:yyyy-MM-dd HH:mm:ss}," +
-                            $"{level.Id},{level.LevelIndex},ACTIVE,{level.Side}," +
-                            $"{level.EntryPrice:F4},{level.CurrentPosition},{level.RemainingQuantity}," +
+                            $"{level.Id},{levelIndex},ACTIVE,{level.Side}," +
+                            $"{level.EntryPrice:F4},{level.CurrentPosition},{remainingQty}," +
                             $"{signal:F6},{pnl:F2}";
                         levelLogWriter.WriteLine(line);
                         levelLogWriter.Flush();
