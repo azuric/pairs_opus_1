@@ -483,11 +483,19 @@ namespace StrategyManagement
                         if (orderId > 0)
                         {
                             level.AddOrder(orderId, LevelOrderType.Exit, totalExitSize, bar.Close, -1);
+                            
+                            // Update position tracking ONLY if order was placed
+                            UpdatePositionTracking(exitSide, totalExitSize, bar.Close);
+                        }
+                        else
+                        {
+                            WriteLogLine($"    Failed to create force exit order - position tracking NOT updated");
                         }
                     }
-
-                    // Update position tracking
-                    UpdatePositionTracking(exitSide, totalExitSize, bar.Close);
+                    else
+                    {
+                        WriteLogLine($"    Cannot place force exit order (live order exists) - position tracking NOT updated");
+                    }
                 }
                 else
                 {
@@ -548,16 +556,20 @@ namespace StrategyManagement
                     order2LevelId[orderId] = level.Id;
                     level.AddOrder(orderId, LevelOrderType.Entry, positionSize, bar.Close);
                     WriteLogLine($"  Order created and tracked");
+                    
+                    // Update position tracking ONLY if order was placed
+                    UpdatePositionTracking(side, positionSize, bar.Close);
+                    WriteLogLine($"  Position updated: Current={currentPosition}, AvgEntry={averageEntryPrice:F4}");
                 }
                 else
                 {
-                    WriteLogLine($"  Failed to create order");
+                    WriteLogLine($"  Failed to create order - position tracking NOT updated");
                 }
             }
-
-            // Update position tracking
-            UpdatePositionTracking(side, positionSize, bar.Close);
-            WriteLogLine($"  Position updated: Current={currentPosition}, AvgEntry={averageEntryPrice:F4}");
+            else
+            {
+                WriteLogLine($"  No TradeManager - position tracking NOT updated");
+            }
         }
 
         #endregion
@@ -620,12 +632,20 @@ namespace StrategyManagement
                 if (orderId > 0)
                 {
                     level.AddOrder(orderId, LevelOrderType.Exit, exitSize, bar.Close, exitLevelIndex);
+                    
+                    // Update position tracking ONLY if order was placed
+                    UpdatePositionTracking(exitSide, exitSize, bar.Close);
+                    WriteLogLine($"  Position updated: Current={currentPosition}, AvgEntry={averageEntryPrice:F4}");
+                }
+                else
+                {
+                    WriteLogLine($"  Failed to create exit order - position tracking NOT updated");
                 }
             }
-
-            // Update position tracking
-            UpdatePositionTracking(exitSide, exitSize, bar.Close);
-            WriteLogLine($"  Position updated: Current={currentPosition}, AvgEntry={averageEntryPrice:F4}");
+            else
+            {
+                WriteLogLine($"  Cannot place exit order (live order exists) - position tracking NOT updated");
+            }
         }
 
         #endregion
