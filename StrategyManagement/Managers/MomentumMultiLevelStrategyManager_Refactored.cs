@@ -61,7 +61,7 @@ namespace StrategyManagement
 
         private double dailyMad;
         private double mad;
-        private int positionSize = 1; // Default position size per level
+        private int positionSize = 3; // Default position size per level (allows 1 unit per exit level)
 
         private Dictionary<int, int> order2LevelId = new Dictionary<int, int>();
         private List<Level> levelList;
@@ -124,7 +124,7 @@ namespace StrategyManagement
             // Set default values
             lookbackPeriod = 10;
             isMeanReverting = false;
-            base.positionSize = 1; // Set base class position size to match
+            base.positionSize = 3; // Set base class position size to match
 
             // Initialize level manager
             levelManager = new LevelManager(entryLevels, exitLevels, isMeanReverting);
@@ -803,7 +803,7 @@ namespace StrategyManagement
                 entryLevels = new List<double> { 0.5, 0.75, 1.0 };
 
             if (exitLevels == null || exitLevels.Count == 0)
-                exitLevels = new List<double> { 0.5, 0.25 };
+                exitLevels = new List<double> { 0.67, 0.33, 0.17 }; // 3 exits: 1 unit each at 67%, 33%, 17% retracement
         }
 
         #endregion
