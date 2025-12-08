@@ -196,22 +196,15 @@ namespace StrategyManagement
         {
             string outputPath = Path.Combine(@"C:\tmp\Template", fileName + ".csv");
 
-            try
+            using (var sw = new StreamWriter(outputPath, false))
             {
-                using (var sw = new StreamWriter(outputPath, false))
-                {
-                    // Write header
-                    sw.WriteLine("FirstFill,LastFill,Side,AvgPrice,ExitPrice,AvgPriceDelta,CycleTime,MAE,MFE,MaxPosition,TimeSinceLastFill,PnL");
+                // Write header
+                sw.WriteLine("FirstFill,LastFill,Side,AvgPrice,ExitPrice,AvgPriceDelta,CycleTime,MAE,MFE,MaxPosition,TimeSinceLastFill,PnL");
 
-                    foreach (var metric in cycleMetrics)
-                    {
-                        sw.WriteLine(FormatTradeMetric(metric));
-                    }
+                foreach (var metric in cycleMetrics)
+                {
+                    sw.WriteLine(FormatTradeMetric(metric));
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error saving cycle metrics: {ex.Message}");
             }
         }
 
@@ -219,21 +212,14 @@ namespace StrategyManagement
         {
             string outputPath = Path.Combine(@"C:\tmp\Template", realtimeFileName);
 
-            try
+            bool fileExists = File.Exists(outputPath);
+            using (var sw = new StreamWriter(outputPath, true))
             {
-                bool fileExists = File.Exists(outputPath);
-                using (var sw = new StreamWriter(outputPath, true))
+                if (!fileExists)
                 {
-                    if (!fileExists)
-                    {
-                        sw.WriteLine("FirstFill,LastFill,Side,AvgPrice,ExitPrice,AvgPriceDelta,CycleTime,MAE,MFE,MaxPosition,TimeSinceLastFill,PnL");
-                    }
-                    sw.WriteLine(FormatTradeMetric(metric));
+                    sw.WriteLine("FirstFill,LastFill,Side,AvgPrice,ExitPrice,AvgPriceDelta,CycleTime,MAE,MFE,MaxPosition,TimeSinceLastFill,PnL");
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error saving realtime metric: {ex.Message}");
+                sw.WriteLine(FormatTradeMetric(metric));
             }
         }
 

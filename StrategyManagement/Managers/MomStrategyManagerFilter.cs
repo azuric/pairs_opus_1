@@ -597,103 +597,96 @@ namespace StrategyManagement
         {
             if (!isWritingMetrics || metricsWriter == null) return;
 
-            try
+            var values = new List<string>();
+
+            // Trade info
+            values.Add(tradeCount.ToString());
+            values.Add(bars[0].CloseDateTime.ToString("yyyy-MM-dd HH:mm:ss"));
+            values.Add(side.ToString());
+            values.Add(pnl.ToString("F12"));
+
+            // Get current features
+            double[] features = AlphaManager?.GetData();
+
+            if (features == null || features.Length < 66)
             {
-                var values = new List<string>();
-
-                // Trade info
-                values.Add(tradeCount.ToString());
-                values.Add(bars[0].CloseDateTime.ToString("yyyy-MM-dd HH:mm:ss"));
-                values.Add(side.ToString());
-                values.Add(pnl.ToString("F12"));
-
-                // Get current features
-                double[] features = AlphaManager?.GetData();
-
-                if (features == null || features.Length < 66)
+                Console.WriteLine($"[METRICS] WARNING: Features not available for trade {tradeCount}");
+                // Write placeholder row
+                for (int i = 0; i < 24 * 3 + 3; i++)
                 {
-                    Console.WriteLine($"[METRICS] WARNING: Features not available for trade {tradeCount}");
-                    // Write placeholder row
-                    for (int i = 0; i < 24 * 3 + 3; i++)
-                    {
-                        values.Add("NaN");
-                    }
-                    metricsWriter.WriteLine(string.Join(",", values));
-                    metricsWriter.Flush();
-                    return;
+                    values.Add("NaN");
                 }
-
-                // Extract the 24 features we care about
-                double[] extractedFeatures = new double[FeatureCount];
-                for (int i = 0; i < FeatureCount && i < FeatureIndices.Length; i++)
-                {
-                    int sourceIndex = FeatureIndices[i];
-                    if (sourceIndex < features.Length)
-                    {
-                        extractedFeatures[i] = features[sourceIndex];
-                    }
-                    else
-                    {
-                        extractedFeatures[i] = double.NaN;
-                    }
-                }
-
-                // Write feature values
-                foreach (var feature in extractedFeatures)
-                {
-                    values.Add(feature.ToString("G17")); // High precision
-                }
-
-                // Calculate bins and contributions
-                int[] bins = new int[FeatureCount];
-                double[] contributions = new double[FeatureCount];
-                double filterScore = 0.0;
-
-                for (int i = 0; i < FeatureCount; i++)
-                {
-                    double featureValue = extractedFeatures[i];
-
-                    // Find bin
-                    int bin = GetBinForFeature(featureValue, i);
-                    bins[i] = bin;
-
-                    // Get contribution
-                    int weightIndex = i * 4 + bin;
-                    double contribution = (weightIndex < WeightsArray.Length) ? WeightsArray[weightIndex] : 0.0;
-                    contributions[i] = contribution;
-
-                    filterScore += contribution;
-                }
-
-                // Write bins
-                foreach (var bin in bins)
-                {
-                    values.Add(bin.ToString());
-                }
-
-                // Write contributions
-                foreach (var contribution in contributions)
-                {
-                    values.Add(contribution.ToString("F12"));
-                }
-
-                // Write filter score and pass/fail
-                values.Add(filterScore.ToString("F12"));
-                values.Add((filterScore >= filterThreshold).ToString());
-                values.Add(filterThreshold.ToString("F12"));
-
                 metricsWriter.WriteLine(string.Join(",", values));
                 metricsWriter.Flush();
+                return;
+            }
 
-                // Log every 100 trades
-                if (tradeCount % 100 == 0)
+            // Extract the 24 features we care about
+            double[] extractedFeatures = new double[FeatureCount];
+            for (int i = 0; i < FeatureCount && i < FeatureIndices.Length; i++)
+            {
+                int sourceIndex = FeatureIndices[i];
+                if (sourceIndex < features.Length)
                 {
-                    Console.WriteLine($"[METRICS] Logged {tradeCount} trades, last filter score: {filterScore:F6}");
+                    extractedFeatures[i] = features[sourceIndex];
+                }
+                else
+                {
+                    extractedFeatures[i] = double.NaN;
                 }
             }
-            catch (Exception ex)
+
+            // Write feature values
+            foreach (var feature in extractedFeatures)
             {
-                Console.WriteLine($"[METRICS] Error writing metrics: {ex.Message}");
+                values.Add(feature.ToString("G17")); // High precision
+            }
+
+            // Calculate bins and contributions
+            int[] bins = new int[FeatureCount];
+            double[] contributions = new double[FeatureCount];
+            double filterScore = 0.0;
+
+            for (int i = 0; i < FeatureCount; i++)
+            {
+                double featureValue = extractedFeatures[i];
+
+                // Find bin
+                int bin = GetBinForFeature(featureValue, i);
+                bins[i] = bin;
+
+                // Get contribution
+                int weightIndex = i * 4 + bin;
+                double contribution = (weightIndex < WeightsArray.Length) ? WeightsArray[weightIndex] : 0.0;
+                contributions[i] = contribution;
+
+                filterScore += contribution;
+            }
+
+            // Write bins
+            foreach (var bin in bins)
+            {
+                values.Add(bin.ToString());
+            }
+
+            // Write contributions
+            foreach (var contribution in contributions)
+            {
+                values.Add(contribution.ToString("F12"));
+            }
+
+            // Write filter score and pass/fail
+            values.Add(filterScore.ToString("F12"));
+            values.Add((filterScore >= filterThreshold).ToString());
+            values.Add(filterThreshold.ToString("F12"));
+
+            metricsWriter.WriteLine(string.Join(",", values));
+            metricsWriter.Flush();
+
+            // Log every 100 trades
+            if (tradeCount % 100 == 0)
+            {
+                Console.WriteLine($"[METRICS] Logged {tradeCount} trades, last filter score: {filterScore:F6}");
             }
         }
 

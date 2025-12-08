@@ -332,61 +332,54 @@ namespace StrategyManagement
         /// </summary>
         private void ExecuteEntryOrder(int levelIndex, double entryLevel, OrderSide side, Bar[] bars)
         {
-            try
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Starting entry execution for level {levelIndex}");
+
+            Bar bar = GetSignalBar(bars);
+
+            // Place order if we have a trade manager
+            if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
             {
-                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Starting entry execution for level {levelIndex}");
+                double entryPrice = bar.Close;
 
-                Bar bar = GetSignalBar(bars);
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Creating level: Index={levelIndex}, EntryLevel={entryLevel}, Side={side}, Size={positionSize}, Price={entryPrice:F4}");
 
-                // Place order if we have a trade manager
-                if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
+                var isLevel = levelManager.CreateLevel(levelIndex, entryLevel, side, positionSize, entryPrice, signal, bar.DateTime);
+
+                if (isLevel)
                 {
-                    double entryPrice = bar.Close;
+                    Level level = levelManager.Levels[levelIndex];
 
-                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Creating level: Index={levelIndex}, EntryLevel={entryLevel}, Side={side}, Size={positionSize}, Price={entryPrice:F4}");
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Level created with ID: {level.Id}");
 
-                    var isLevel = levelManager.CreateLevel(levelIndex, entryLevel, side, positionSize, entryPrice, signal, bar.DateTime);
+                    int orderId = base.TradeManager.CreateOrder(side, positionSize, bar.Close, tradeInstrument);
 
-                    if (isLevel)
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Order created with ID: {orderId}");
+
+                    order2LevelId[orderId] = level.Id;
+
+                    // Execute theoretical entry
+                    ExecuteTheoreticalEntry(bars, side);
+
+                    if (orderId >= 0)
                     {
-                        Level level = levelManager.Levels[levelIndex];
+                        level.AddOrder(orderId, LevelOrderType.Entry, positionSize, bar.Close);
 
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Level created with ID: {level.Id}");
-
-                        int orderId = base.TradeManager.CreateOrder(side, positionSize, bar.Close, tradeInstrument);
-
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Order created with ID: {orderId}");
-
-                        order2LevelId[orderId] = level.Id;
-
-                        // Execute theoretical entry
-                        ExecuteTheoreticalEntry(bars, side);
-
-                        if (orderId >= 0)
-                        {
-                            level.AddOrder(orderId, LevelOrderType.Entry, positionSize, bar.Close);
-
-                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Entry order: {side} {positionSize} @ {bar.Close:F4} (Level {entryLevel})");
-                        }
-                        else
-                        {
-                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Failed to create order (ID: {orderId})");
-                        }
+                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Entry order: {side} {positionSize} @ {bar.Close:F4} (Level {entryLevel})");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Failed to create order (ID: {orderId})");
                     }
                 }
-                else
-                {
-                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Cannot place order: TradeManager={base.TradeManager != null}, HasLiveOrder={base.TradeManager?.HasLiveOrder}");
-                }
-
-                // Update our simple position tracking
-                UpdatePositionTracking(side, positionSize, bar.Close);
-                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Position updated: Current={currentPosition}, AvgEntry={averageEntryPrice:F4}");
             }
-            catch (Exception ex)
+            else
             {
-                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Error executing entry order: {ex.Message}");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Cannot place order: TradeManager={base.TradeManager != null}, HasLiveOrder={base.TradeManager?.HasLiveOrder}");
             }
+
+            // Update our simple position tracking
+            UpdatePositionTracking(side, positionSize, bar.Close);
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Position updated: Current={currentPosition}, AvgEntry={averageEntryPrice:F4}");
         }
 
         /// <summary>
@@ -394,41 +387,34 @@ namespace StrategyManagement
         /// </summary>
         private void ExecuteExitOrder(int levelId, int exitLevelIndex, Bar bar)
         {
-            try
+            var level = levelManager.GetLevel(levelId);
+
+            if (level == null) return;
+
+            int exitSize = level.GetExitQuantityForLevel(exitLevelIndex);
+            if (exitSize <= 0) return;
+
+            OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
+
+
+            // Execute the exit in level manager
+            levelManager.ExecuteExit(levelId, exitLevelIndex, bar.Close, bar.DateTime);
+
+            // Place order if we have a trade manager
+            if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
             {
-                var level = levelManager.GetLevel(levelId);
+                int orderId = TradeManager.CreateOrder(exitSide, exitSize, bar.Close, tradeInstrument);
 
-                if (level == null) return;
-
-                int exitSize = level.GetExitQuantityForLevel(exitLevelIndex);
-                if (exitSize <= 0) return;
-
-                OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
-
-
-                // Execute the exit in level manager
-                levelManager.ExecuteExit(levelId, exitLevelIndex, bar.Close, bar.DateTime);
-
-                // Place order if we have a trade manager
-                if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
+                if (orderId > 0)
                 {
-                    int orderId = TradeManager.CreateOrder(exitSide, exitSize, bar.Close, tradeInstrument);
+                    level.AddOrder(orderId, LevelOrderType.Exit, exitSize, bar.Close, exitLevelIndex);
 
-                    if (orderId > 0)
-                    {
-                        level.AddOrder(orderId, LevelOrderType.Exit, exitSize, bar.Close, exitLevelIndex);
-
-                        Console.WriteLine($"Exit order: {exitSide} {exitSize} @ {bar.Close:F4} (Level {levelId})");
-                    }
+                    Console.WriteLine($"Exit order: {exitSide} {exitSize} @ {bar.Close:F4} (Level {levelId})");
                 }
+            }
 
-                // Update our simple position tracking
-                UpdatePositionTracking(exitSide, exitSize, bar.Close);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error executing exit order: {ex.Message}");
-            }
+            // Update our simple position tracking
+            UpdatePositionTracking(exitSide, exitSize, bar.Close);
         }
 
         /// <summary>
@@ -436,59 +422,52 @@ namespace StrategyManagement
         /// </summary>
         private void ForceExitAllPositions(Bar bar)
         {
-            try
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Starting force exit of all {levelManager.ActiveLevelCount} active levels");
+
+            // Get all active levels before we start modifying the collection
+            var activeLevels = levelManager.ActiveLevels.Values.ToList();
+
+            foreach (var level in activeLevels)
             {
-                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Starting force exit of all {levelManager.ActiveLevelCount} active levels");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Force exiting level {level.Id}, current position: {level.CurrentPosition}");
 
-                // Get all active levels before we start modifying the collection
-                var activeLevels = levelManager.ActiveLevels.Values.ToList();
-
-                foreach (var level in activeLevels)
+                if (level.CurrentPosition != 0)
                 {
-                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Force exiting level {level.Id}, current position: {level.CurrentPosition}");
+                    // Calculate total exit size needed
+                    int totalExitSize = Math.Abs(level.CurrentPosition);
+                    OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
 
-                    if (level.CurrentPosition != 0)
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Level {level.Id}: Exiting {totalExitSize} units, side {exitSide}");
+
+                    // Force exit the entire remaining position
+                    levelManager.ForceExitLevel(level.Id, totalExitSize, bar.Close, bar.DateTime);
+
+                    // Place order if we have a trade manager
+                    if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
                     {
-                        // Calculate total exit size needed
-                        int totalExitSize = Math.Abs(level.CurrentPosition);
-                        OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
+                        int orderId = base.TradeManager.CreateOrder(exitSide, totalExitSize, bar.Close, tradeInstrument);
 
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Level {level.Id}: Exiting {totalExitSize} units, side {exitSide}");
-
-                        // Force exit the entire remaining position
-                        levelManager.ForceExitLevel(level.Id, totalExitSize, bar.Close, bar.DateTime);
-
-                        // Place order if we have a trade manager
-                        if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
+                        if (orderId > 0)
                         {
-                            int orderId = base.TradeManager.CreateOrder(exitSide, totalExitSize, bar.Close, tradeInstrument);
-
-                            if (orderId > 0)
-                            {
-                                level.AddOrder(orderId, LevelOrderType.Exit, totalExitSize, bar.Close, -1); // -1 indicates force exit
-                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Force exit order created: {exitSide} {totalExitSize} @ {bar.Close:F4}");
-                            }
-                            else
-                            {
-                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Failed to create force exit order for level {level.Id}");
-                            }
+                            level.AddOrder(orderId, LevelOrderType.Exit, totalExitSize, bar.Close, -1); // -1 indicates force exit
+                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Force exit order created: {exitSide} {totalExitSize} @ {bar.Close:F4}");
                         }
-
-                        // Update position tracking
-                        UpdatePositionTracking(exitSide, totalExitSize, bar.Close);
+                        else
+                        {
+                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Failed to create force exit order for level {level.Id}");
+                        }
                     }
+
+                    // Update position tracking
+                    UpdatePositionTracking(exitSide, totalExitSize, bar.Close);
                 }
-
-                // Reset position tracking after all exits
-                currentPosition = 0;
-                averageEntryPrice = 0;
-
-                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - All positions reset. Active levels: {levelManager.ActiveLevelCount}");
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in force exit: {ex.Message}");
-            }
+
+            // Reset position tracking after all exits
+            currentPosition = 0;
+            averageEntryPrice = 0;
+
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - All positions reset. Active levels: {levelManager.ActiveLevelCount}");
         }
 
         #endregion
