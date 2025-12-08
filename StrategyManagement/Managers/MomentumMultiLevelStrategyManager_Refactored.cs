@@ -8,7 +8,6 @@ using System.Security.Cryptography;
 using SmartQuant.Statistics;
 using System.Security.Policy;
 using System.IO;
-using System.Reflection.Emit;
 
 namespace StrategyManagement
 {
@@ -21,14 +20,14 @@ namespace StrategyManagement
     public class MomentumMultiLevelStrategyManager : BaseStrategyManager
     {
         #region Logging
-
+        
         private StreamWriter logWriter;
         private StreamWriter orderLogWriter;
         private StreamWriter tradeLogWriter;
         private StreamWriter levelLogWriter;
         private string logDirectory = "C:\\tmp\\Template\\debug_logs\\";
         private int barCounter = 0;
-
+        
         #endregion
 
         #region Core Properties
@@ -62,7 +61,7 @@ namespace StrategyManagement
 
         private double dailyMad;
         private double mad;
-        private int positionSize = 3; // Default position size per level
+        private int positionSize = 3; // Default position size per level (allows 1 unit per exit level)
 
         private Dictionary<int, int> order2LevelId = new Dictionary<int, int>();
         private List<Level> levelList;
@@ -94,7 +93,7 @@ namespace StrategyManagement
         public override void Initialize(StrategyParameters parameters)
         {
             base.Initialize(parameters);
-
+            
             // Create log directory
             Directory.CreateDirectory(logDirectory);
 
@@ -125,6 +124,7 @@ namespace StrategyManagement
             // Set default values
             lookbackPeriod = 10;
             isMeanReverting = false;
+            base.positionSize = 3; // Set base class position size to match
 
             // Initialize level manager
             levelManager = new LevelManager(entryLevels, exitLevels, isMeanReverting);
@@ -165,7 +165,7 @@ namespace StrategyManagement
             // ==================== STEP 1: UPDATE PRICE WINDOW AND SIGNAL ====================
             WriteLogLine("");
             WriteLogLine("--- STEP 1: Update Price Window and Signal ---");
-
+            
             priceWindow.Enqueue(signalBar.Close);
             WriteLogLine($"Price added to window: {signalBar.Close:F4}");
 
@@ -189,10 +189,10 @@ namespace StrategyManagement
             // ==================== STEP 2: CALCULATE STATISTICS ====================
             WriteLogLine("");
             WriteLogLine("--- STEP 2: Calculate Statistics ---");
-
+            
             CalculateStatistics();
             WriteLogLine($"Moving Average: {movingAverage:F6}");
-
+            
             double old_signal = signal;
             signal = (signalBar.Close / movingAverage) - 1.0;
             WriteLogLine($"Signal: ({signalBar.Close:F4} / {movingAverage:F6}) - 1.0 = {signal:F6} (was {old_signal:F6})");
@@ -200,7 +200,7 @@ namespace StrategyManagement
             // ==================== STEP 3: UPDATE MAD ====================
             WriteLogLine("");
             WriteLogLine("--- STEP 3: Update MAD (Mean Absolute Deviation) ---");
-
+            
             if (signalBar.CloseDateTime.Date != currentDate)
             {
                 dailyMad = mad;
@@ -229,7 +229,7 @@ namespace StrategyManagement
             WriteLogLine($"Current Position: {currentPosition}");
             WriteLogLine($"Average Entry Price: {averageEntryPrice:F4}");
             WriteLogLine($"Active Levels: {levelManager.ActiveLevelCount} / {levelManager.MaxConcurrentLevels}");
-
+            
             if (levelManager.ActiveLevelCount > 0)
             {
                 WriteLogLine("Active Level Details:");
@@ -241,10 +241,12 @@ namespace StrategyManagement
                 }
             }
 
-
-
+            // ==================== STEP 5: CHECK FORCE EXIT CONDITIONS ====================
+            WriteLogLine("");
+            WriteLogLine("--- STEP 5: Check Force Exit Conditions ---");
+            
             bool shouldForceExit = CheckForceExitConditions(signalBar.DateTime);
-
+            
             if (shouldForceExit)
             {
                 WriteLogLine("FORCE EXIT TRIGGERED - Exiting all positions");
@@ -263,7 +265,7 @@ namespace StrategyManagement
             // ==================== STEP 6: CHECK EXIT CONDITIONS FOR EACH LEVEL ====================
             WriteLogLine("");
             WriteLogLine("--- STEP 6: Check Exit Conditions for Active Levels ---");
-
+            
             if (levelManager.ActiveLevelCount == 0)
             {
                 WriteLogLine("No active levels to check for exits");
@@ -292,10 +294,10 @@ namespace StrategyManagement
                     {
                         double exitThreshold = exitLevels[exitLevelIndex];
                         WriteLogLine($"    Exit Level Index {exitLevelIndex}: Threshold={exitThreshold}");
-
+                        
                         int exitQty = level.GetExitQuantityForLevel(exitLevelIndex);
                         WriteLogLine($"    Exit Quantity: {exitQty}");
-
+                        
                         if (exitQty > 0)
                         {
                             WriteLogLine($"    EXECUTING EXIT for Level {levelId}, Exit Index {exitLevelIndex}");
@@ -312,12 +314,12 @@ namespace StrategyManagement
             // ==================== STEP 7: CHECK ENTRY CONDITIONS FOR EACH LEVEL ====================
             WriteLogLine("");
             WriteLogLine("--- STEP 7: Check Entry Conditions ---");
-
+            
             // Check basic entry conditions
             bool withinTradingHours = IsWithinTradingHours(signalBar.DateTime);
             bool positionLimitOk = levelManager.ActiveLevelCount < levelManager.MaxConcurrentLevels;
             bool noLiveOrder = base.TradeManager == null || !base.TradeManager.HasLiveOrder;
-
+            
             WriteLogLine($"Entry Pre-checks:");
             WriteLogLine($"  Within Trading Hours: {withinTradingHours}");
             WriteLogLine($"  Position Limit OK: {positionLimitOk} ({levelManager.ActiveLevelCount} < {levelManager.MaxConcurrentLevels})");
@@ -339,7 +341,7 @@ namespace StrategyManagement
             {
                 WriteLogLine("");
                 WriteLogLine("Checking each entry level:");
-
+                
                 for (int i = 0; i < entryLevels.Count; i++)
                 {
                     double entryLevel = entryLevels[i];
@@ -369,7 +371,7 @@ namespace StrategyManagement
                     {
                         WriteLogLine($"    LONG ENTRY TRIGGERED for Level {i}");
                         ExecuteEntry(i, entryLevel, OrderSide.Buy, signalBar);
-
+                        
                         // Re-check position limit after entry
                         if (levelManager.ActiveLevelCount >= levelManager.MaxConcurrentLevels)
                         {
@@ -387,7 +389,7 @@ namespace StrategyManagement
                     {
                         WriteLogLine($"    SHORT ENTRY TRIGGERED for Level {i}");
                         ExecuteEntry(i, entryLevel, OrderSide.Sell, signalBar);
-
+                        
                         // Re-check position limit after entry
                         if (levelManager.ActiveLevelCount >= levelManager.MaxConcurrentLevels)
                         {
@@ -453,7 +455,7 @@ namespace StrategyManagement
                 {
                     int totalExitSize = Math.Abs(level.CurrentPosition);
                     OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
-
+                    
                     WriteLogLine($"    Exit Size: {totalExitSize}");
                     WriteLogLine($"    Exit Side: {exitSide}");
 
@@ -463,7 +465,7 @@ namespace StrategyManagement
                         pnl = (bar.Close - level.EntryPrice) * totalExitSize;
                     else
                         pnl = (level.EntryPrice - bar.Close) * totalExitSize;
-
+                    
                     WriteLogLine($"    PnL: {pnl:F2}");
 
                     // Force exit in level manager
@@ -476,11 +478,12 @@ namespace StrategyManagement
                     if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
                     {
                         int orderId = base.TradeManager.CreateOrder(exitSide, totalExitSize, bar.Close, tradeInstrument);
+                        WriteLogLine($"    Order ID: {orderId}");
 
                         if (orderId > 0)
                         {
                             level.AddOrder(orderId, LevelOrderType.Exit, totalExitSize, bar.Close, -1);
-
+                            
                             // Update position tracking ONLY if order was placed
                             UpdatePositionTracking(exitSide, totalExitSize, bar.Close);
                         }
@@ -493,9 +496,6 @@ namespace StrategyManagement
                     {
                         WriteLogLine($"    Cannot place force exit order (live order exists) - position tracking NOT updated");
                     }
-
-                    // Update position tracking
-                    UpdatePositionTracking(exitSide, totalExitSize, bar.Close);
                 }
                 else
                 {
@@ -506,7 +506,7 @@ namespace StrategyManagement
             // Reset position tracking
             currentPosition = 0;
             averageEntryPrice = 0;
-
+            
             WriteLogLine($"Force exit complete. Position reset. Active levels: {levelManager.ActiveLevelCount}");
         }
 
@@ -514,168 +514,186 @@ namespace StrategyManagement
 
         #region Entry Execution
 
-        /// <summary>
-        /// Execute entry order - simple, direct, no abstraction
-        /// </summary>
-        private void ExecuteEntryOrder(int levelIndex, double entryLevel, OrderSide side, Bar[] bars)
+        private void ExecuteEntry(int levelIndex, double entryLevel, OrderSide side, Bar bar)
         {
-            try
+            WriteLogLine($"ExecuteEntry: Level Index={levelIndex}, EntryLevel={entryLevel}, Side={side}");
+
+            // Check if we can place order
+            if (base.TradeManager != null && base.TradeManager.HasLiveOrder)
             {
-                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Starting entry execution for level {levelIndex}");
+                WriteLogLine($"  Cannot place order - live order exists");
+                return;
+            }
 
-                Bar bar = GetSignalBar(bars);
+            double entryPrice = bar.Close;
+            WriteLogLine($"  Entry Price: {entryPrice:F4}");
+            WriteLogLine($"  Position Size: {positionSize}");
+            WriteLogLine($"  Signal: {signal:F6}");
 
-                // Place order if we have a trade manager
-                if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
+            // Create level
+            bool isLevel = levelManager.CreateLevel(levelIndex, entryLevel, side, positionSize, entryPrice, signal, bar.DateTime);
+
+            if (!isLevel)
+            {
+                WriteLogLine($"  Failed to create level");
+                return;
+            }
+
+            Level level = levelManager.Levels[levelIndex];
+            WriteLogLine($"  Level created with ID: {level.Id}");
+
+            // Log order
+            LogOrder(bar, "ENTRY", level.Id, levelIndex, side, entryPrice, positionSize);
+
+            // Create order
+            if (base.TradeManager != null)
+            {
+                int orderId = base.TradeManager.CreateOrder(side, positionSize, bar.Close, tradeInstrument);
+                WriteLogLine($"  Order ID: {orderId}");
+
+                if (orderId >= 0)
                 {
-                    double entryPrice = bar.Close;
-
-                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Creating level: Index={levelIndex}, EntryLevel={entryLevel}, Side={side}, Size={positionSize}, Price={entryPrice:F4}");
-
-                    var isLevel = levelManager.CreateLevel(levelIndex, entryLevel, side, positionSize, entryPrice, signal, bar.DateTime);
-
-                    if (isLevel)
-                    {
-                        Level level = levelManager.Levels[levelIndex];
-
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Level created with ID: {level.Id}");
-
-                        int orderId = base.TradeManager.CreateOrder(side, positionSize, bar.Close, tradeInstrument);
-
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Order created with ID: {orderId}");
-
-                        order2LevelId[orderId] = level.Id;
-
-                        // Execute theoretical entry
-                        ExecuteTheoreticalEntry(bars, side);
-
-                        if (orderId >= 0)
-                        {
-                            level.AddOrder(orderId, LevelOrderType.Entry, positionSize, bar.Close);
-
-                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Entry order: {side} {positionSize} @ {bar.Close:F4} (Level {entryLevel})");
-                        }
-                        else
-                        {
-                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Failed to create order (ID: {orderId})");
-                        }
-                    }
+                    order2LevelId[orderId] = level.Id;
+                    level.AddOrder(orderId, LevelOrderType.Entry, positionSize, bar.Close);
+                    WriteLogLine($"  Order created and tracked");
+                    
+                    // Update position tracking ONLY if order was placed
+                    UpdatePositionTracking(side, positionSize, bar.Close);
+                    WriteLogLine($"  Position updated: Current={currentPosition}, AvgEntry={averageEntryPrice:F4}");
                 }
                 else
                 {
-                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Cannot place order: TradeManager={base.TradeManager != null}, HasLiveOrder={base.TradeManager?.HasLiveOrder}");
+                    WriteLogLine($"  Failed to create order - position tracking NOT updated");
                 }
-
-                // Update our simple position tracking
-                UpdatePositionTracking(side, positionSize, bar.Close);
-                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Position updated: Current={currentPosition}, AvgEntry={averageEntryPrice:F4}");
             }
-            catch (Exception ex)
+            else
             {
-                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ExecuteEntryOrder - Error executing entry order: {ex.Message}");
+                WriteLogLine($"  No TradeManager - position tracking NOT updated");
             }
         }
 
-        /// <summary>
-        /// Execute exit order - simple, direct, no abstraction
-        /// </summary>
-        private void ExecuteExitOrder(int levelId, int exitLevelIndex, Bar bar)
+        #endregion
+
+        #region Exit Execution
+
+        private void ExecuteExit(int levelId, int exitLevelIndex, Bar bar)
         {
-            try
+            WriteLogLine($"ExecuteExit: Level ID={levelId}, Exit Index={exitLevelIndex}");
+
+            var level = levelManager.GetLevel(levelId);
+
+            if (level == null)
             {
-                var level = levelManager.GetLevel(levelId);
+                WriteLogLine($"  Level not found");
+                return;
+            }
 
-                if (level == null) return;
+            int exitSize = level.GetExitQuantityForLevel(exitLevelIndex);
+            WriteLogLine($"  Exit Size: {exitSize}");
 
-                int exitSize = level.GetExitQuantityForLevel(exitLevelIndex);
-                if (exitSize <= 0) return;
+            if (exitSize <= 0)
+            {
+                WriteLogLine($"  No quantity to exit");
+                return;
+            }
 
-                OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
+            OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
+            WriteLogLine($"  Exit Side: {exitSide}");
+            WriteLogLine($"  Exit Price: {bar.Close:F4}");
 
+            // Calculate PnL for this exit
+            double pnl = 0.0;
+            if (level.Side == OrderSide.Buy)
+                pnl = (bar.Close - level.EntryPrice) * exitSize;
+            else
+                pnl = (level.EntryPrice - bar.Close) * exitSize;
+            
             WriteLogLine($"  PnL: {pnl:F2}");
 
-                // Execute the exit in level manager
-                levelManager.ExecuteExit(levelId, exitLevelIndex, bar.Close, bar.DateTime);
+            // Execute exit in level manager
+            levelManager.ExecuteExit(levelId, exitLevelIndex, bar.Close, bar.DateTime);
 
-                // Place order if we have a trade manager
-                if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
-                {
-                    int orderId = TradeManager.CreateOrder(exitSide, exitSize, bar.Close, tradeInstrument);
+            // Log order
+            int levelIndex = levelManager.ActiveLevels2Levels.ContainsKey(levelId) ? levelManager.ActiveLevels2Levels[levelId] : -1;
+            LogOrder(bar, "EXIT", levelId, levelIndex, exitSide, bar.Close, exitSize);
+
+            // Log trade if level is fully closed
+            if (level.CurrentPosition == 0)
+            {
+                LogTrade(level, bar);
+            }
+
+            // Place order if we have a trade manager
+            if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
+            {
+                int orderId = TradeManager.CreateOrder(exitSide, exitSize, bar.Close, tradeInstrument);
+                WriteLogLine($"  Order ID: {orderId}");
 
                 if (orderId > 0)
                 {
                     level.AddOrder(orderId, LevelOrderType.Exit, exitSize, bar.Close, exitLevelIndex);
-
-                        Console.WriteLine($"Exit order: {exitSide} {exitSize} @ {bar.Close:F4} (Level {levelId})");
-                    }
+                    
+                    // Update position tracking ONLY if order was placed
+                    UpdatePositionTracking(exitSide, exitSize, bar.Close);
+                    WriteLogLine($"  Position updated: Current={currentPosition}, AvgEntry={averageEntryPrice:F4}");
                 }
-
-                // Update our simple position tracking
-                UpdatePositionTracking(exitSide, exitSize, bar.Close);
+                else
+                {
+                    WriteLogLine($"  Failed to create exit order - position tracking NOT updated");
+                }
             }
-            catch (Exception ex)
+            else
             {
-                Console.WriteLine($"Error executing exit order: {ex.Message}");
+                WriteLogLine($"  Cannot place exit order (live order exists) - position tracking NOT updated");
             }
         }
 
-        /// <summary>
-        /// Force exit all positions - simple and direct
-        /// </summary>
-        private void ForceExitAllPositions(Bar bar)
+        #endregion
+
+        #region Logging Methods
+
+        private void WriteLogLine(string message)
         {
-            try
+            if (logWriter != null)
             {
-                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Starting force exit of all {levelManager.ActiveLevelCount} active levels");
-
-                // Get all active levels before we start modifying the collection
-                var activeLevels = levelManager.ActiveLevels.Values.ToList();
-
-                foreach (var level in activeLevels)
-                {
-                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Force exiting level {level.Id}, current position: {level.CurrentPosition}");
-
-                    if (level.CurrentPosition != 0)
-                    {
-                        // Calculate total exit size needed
-                        int totalExitSize = Math.Abs(level.CurrentPosition);
-                        OrderSide exitSide = level.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
-
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Level {level.Id}: Exiting {totalExitSize} units, side {exitSide}");
-
-                        // Force exit the entire remaining position
-                        levelManager.ForceExitLevel(level.Id, totalExitSize, bar.Close, bar.DateTime);
-
-                        // Place order if we have a trade manager
-                        if (base.TradeManager != null && !base.TradeManager.HasLiveOrder)
-                        {
-                            int orderId = base.TradeManager.CreateOrder(exitSide, totalExitSize, bar.Close, tradeInstrument);
-
-                            if (orderId > 0)
-                            {
-                                level.AddOrder(orderId, LevelOrderType.Exit, totalExitSize, bar.Close, -1); // -1 indicates force exit
-                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Force exit order created: {exitSide} {totalExitSize} @ {bar.Close:F4}");
-                            }
-                            else
-                            {
-                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - Failed to create force exit order for level {level.Id}");
-                            }
-                        }
-
-                        // Update position tracking
-                        UpdatePositionTracking(exitSide, totalExitSize, bar.Close);
-                    }
-                }
-
-                // Reset position tracking after all exits
-                currentPosition = 0;
-                averageEntryPrice = 0;
-
-                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ForceExitAllPositions - All positions reset. Active levels: {levelManager.ActiveLevelCount}");
+                logWriter.WriteLine(message);
+                logWriter.Flush();
             }
-            catch (Exception ex)
+        }
+
+        private void LogOrder(Bar bar, string eventType, int levelId, int levelIndex, OrderSide side, 
+            double price, int quantity)
+        {
+            if (orderLogWriter != null)
             {
-                Console.WriteLine($"Error in force exit: {ex.Message}");
+                string line = $"{barCounter},{bar.CloseDateTime:yyyy-MM-dd HH:mm:ss},{eventType},{levelId},{levelIndex}," +
+                    $"{side},{price:F4},{quantity},{signal:F6},{mad:F6}," +
+                    $"{string.Join("|", entryLevels)},{string.Join("|", exitLevels)}," +
+                    $"{currentPosition},{levelManager.ActiveLevelCount}";
+                orderLogWriter.WriteLine(line);
+                orderLogWriter.Flush();
+            }
+        }
+
+        private void LogTrade(Level level, Bar exitBar)
+        {
+            if (tradeLogWriter != null)
+            {
+                TimeSpan holdTime = exitBar.DateTime - level.EntryDateTime;
+                int holdBars = (int)(holdTime.TotalMinutes / 1); // Assuming 1-minute bars
+
+                double pnl = 0.0;
+                // Calculate total PnL from level's trade history
+                // This is simplified - you may want to track this in Level class
+                
+                int levelIndex = levelManager.ActiveLevels2Levels.ContainsKey(level.Id) ? levelManager.ActiveLevels2Levels[level.Id] : -1;
+                string line = $"{level.Id},{levelIndex}," +
+                    $"{level.EntryDateTime:yyyy-MM-dd HH:mm:ss},{exitBar.CloseDateTime:yyyy-MM-dd HH:mm:ss}," +
+                    $"{level.Side},{level.EntryPrice:F4},{exitBar.Close:F4}," +
+                    $"{level.PositionSize},{pnl:F2},{level.ActualEntrySignal:F6}," +
+                    $"{level.EntrySignalThreshold},{string.Join("|", exitLevels)},{holdBars}";
+                tradeLogWriter.WriteLine(line);
+                tradeLogWriter.Flush();
             }
         }
 
@@ -692,7 +710,7 @@ namespace StrategyManagement
                     foreach (var kvp in levelManager.ActiveLevels)
                     {
                         var level = kvp.Value;
-
+                        
                         double pnl = 0.0;
                         if (level.Side == OrderSide.Buy)
                             pnl = (bar.Close - level.EntryPrice) * Math.Abs(level.CurrentPosition);
@@ -805,7 +823,7 @@ namespace StrategyManagement
                 entryLevels = new List<double> { 0.5, 0.75, 1.0 };
 
             if (exitLevels == null || exitLevels.Count == 0)
-                exitLevels = new List<double> { 0.5, 0.25 };
+                exitLevels = new List<double> { 0.67, 0.33, 0.17 }; // 3 exits: 1 unit each at 67%, 33%, 17% retracement
         }
 
         #endregion
@@ -850,27 +868,31 @@ namespace StrategyManagement
 
         public void ProcessBar(Bar[] bars, double accountValue)
         {
-            ProcessBar(bars); // Delegate to simpler version
+            // Not used - all logic in OnBar
         }
 
         public override bool ShouldEnterLongPosition(Bar[] bars)
         {
-            return bars?.Length > 0 && ShouldEnterLong(bars[0]);
+            // Not used - all logic in OnBar
+            return false;
         }
 
         public override bool ShouldEnterShortPosition(Bar[] bars)
         {
-            return bars?.Length > 0 && ShouldEnterShort(bars[0]);
+            // Not used - all logic in OnBar
+            return false;
         }
 
         public override bool ShouldExitLongPosition(Bar[] bars)
         {
-            return currentPosition > 0 && (bars?.Length > 0 && ShouldForceExitAll(bars[0].DateTime));
+            // Not used - all logic in OnBar
+            return false;
         }
 
         public override bool ShouldExitShortPosition(Bar[] bars)
         {
-            return currentPosition < 0 && (bars?.Length > 0 && ShouldForceExitAll(bars[0].DateTime));
+            // Not used - all logic in OnBar
+            return false;
         }
 
         #endregion

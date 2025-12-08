@@ -169,31 +169,21 @@ namespace StrategyManagement
         /// <param name="parameters">Strategy parameters</param>
         private void ParseSignalAndExecutionConfiguration(StrategyParameters parameters)
         {
-            try
+            // Parse signal source
+            signalSource = ParseInstrumentSource(parameters.signal_source, "signal_source", SignalSource.Synthetic);
+
+            // Parse execution instrument - if not specified, use same as signal source
+            string executionInstrumentConfig = parameters.execution_instrument ?? parameters.signal_source ?? "synth";
+            executionInstrumentSource = ParseInstrumentSource(executionInstrumentConfig, "execution_instrument", signalSource);
+
+            Console.WriteLine($"Strategy {Name} configuration:");
+            Console.WriteLine($"  Trade Instrument (Synthetic): {parameters.trade_instrument}");
+            Console.WriteLine($"  Signal Source: {signalSource}");
+            Console.WriteLine($"  Execution Instrument: {executionInstrumentSource}");
+
+            if (signalSource != executionInstrumentSource)
             {
-                // Parse signal source
-                signalSource = ParseInstrumentSource(parameters.signal_source, "signal_source", SignalSource.Synthetic);
-
-                // Parse execution instrument - if not specified, use same as signal source
-                string executionInstrumentConfig = parameters.execution_instrument ?? parameters.signal_source ?? "synth";
-                executionInstrumentSource = ParseInstrumentSource(executionInstrumentConfig, "execution_instrument", signalSource);
-
-                Console.WriteLine($"Strategy {Name} configuration:");
-                Console.WriteLine($"  Trade Instrument (Synthetic): {parameters.trade_instrument}");
-                Console.WriteLine($"  Signal Source: {signalSource}");
-                Console.WriteLine($"  Execution Instrument: {executionInstrumentSource}");
-
-                if (signalSource != executionInstrumentSource)
-                {
-                    Console.WriteLine($"  Note: Cross-instrument strategy - signals from {signalSource}, executing on {executionInstrumentSource}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error parsing signal/execution configuration for {Name}: {ex.Message}");
-                Console.WriteLine("Using default configuration: signal_source=Synthetic, execution_instrument=Synthetic");
-                signalSource = SignalSource.Synthetic;
-                executionInstrumentSource = SignalSource.Synthetic;
+                Console.WriteLine($"  Note: Cross-instrument strategy - signals from {signalSource}, executing on {executionInstrumentSource}");
             }
         }
 
@@ -441,49 +431,42 @@ namespace StrategyManagement
         /// </summary>
         protected void ValidateSignalExecutionConfiguration()
         {
-            try
+            if (!isPairMode)
             {
-                if (!isPairMode)
-                {
-                    Console.WriteLine("Single instrument mode: Signal and execution instrument are the same.");
-                    return;
-                }
-
-                if (signalSource == executionInstrumentSource)
-                {
-                    Console.WriteLine($"Standard configuration: Using {signalSource} for both signals and execution.");
-                }
-                else
-                {
-                    Console.WriteLine($"Cross-instrument strategy: Signals from {signalSource}, executing on {executionInstrumentSource}");
-
-                    // Add specific warnings for certain combinations
-                    if (signalSource == SignalSource.Synthetic && executionInstrumentSource != SignalSource.Synthetic)
-                    {
-                        Console.WriteLine("Note: Using synthetic signals to execute on individual instruments. " +
-                                        "Ensure proper position sizing and risk management.");
-                    }
-
-                    if (signalSource != SignalSource.Synthetic && executionInstrumentSource == SignalSource.Synthetic)
-                    {
-                        Console.WriteLine("Note: Using individual instrument signals to execute on synthetic. " +
-                                        "Consider correlation and liquidity differences.");
-                    }
-
-                    if (signalSource == SignalSource.Numerator && executionInstrumentSource == SignalSource.Denominator)
-                    {
-                        Console.WriteLine("Note: Inverse correlation strategy - numerator signals, denominator execution.");
-                    }
-
-                    if (signalSource == SignalSource.Denominator && executionInstrumentSource == SignalSource.Numerator)
-                    {
-                        Console.WriteLine("Note: Inverse correlation strategy - denominator signals, numerator execution.");
-                    }
-                }
+                Console.WriteLine("Single instrument mode: Signal and execution instrument are the same.");
+                return;
             }
-            catch (Exception ex)
+
+            if (signalSource == executionInstrumentSource)
             {
-                Console.WriteLine($"Error in configuration validation: {ex.Message}");
+                Console.WriteLine($"Standard configuration: Using {signalSource} for both signals and execution.");
+            }
+            else
+            {
+                Console.WriteLine($"Cross-instrument strategy: Signals from {signalSource}, executing on {executionInstrumentSource}");
+
+                // Add specific warnings for certain combinations
+                if (signalSource == SignalSource.Synthetic && executionInstrumentSource != SignalSource.Synthetic)
+                {
+                    Console.WriteLine("Note: Using synthetic signals to execute on individual instruments. " +
+                                    "Ensure proper position sizing and risk management.");
+                }
+
+                if (signalSource != SignalSource.Synthetic && executionInstrumentSource == SignalSource.Synthetic)
+                {
+                    Console.WriteLine("Note: Using individual instrument signals to execute on synthetic. " +
+                                    "Consider correlation and liquidity differences.");
+                }
+
+                if (signalSource == SignalSource.Numerator && executionInstrumentSource == SignalSource.Denominator)
+                {
+                    Console.WriteLine("Note: Inverse correlation strategy - numerator signals, denominator execution.");
+                }
+
+                if (signalSource == SignalSource.Denominator && executionInstrumentSource == SignalSource.Numerator)
+                {
+                    Console.WriteLine("Note: Inverse correlation strategy - denominator signals, numerator execution.");
+                }
             }
         }
 
@@ -542,23 +525,16 @@ namespace StrategyManagement
         /// <param name="accountValue">Current account value</param>
         protected void ExecuteTheoreticalEntry(Bar[] bars, OrderSide side)
         {
-            try
-            {
-                Bar signalBar = GetSignalBar(bars);
+            Bar signalBar = GetSignalBar(bars);
 
-                Bar bar = GetExecutionInstrumentBar(bars);
+            Bar bar = GetExecutionInstrumentBar(bars);
 
-                double entryPrice = bar.Close;
+            double entryPrice = bar.Close;
 
-                DualPositionManager?.UpdateTheoPosition(signalBar.DateTime, side, positionSize, entryPrice);
+            DualPositionManager?.UpdateTheoPosition(signalBar.DateTime, side, positionSize, entryPrice);
 
-                Console.WriteLine($"Theoretical entry: {side} {positionSize} @ {entryPrice:F4} " +
-                                $"(Signal: {GetSignalSourceDescription()}, Execution: {GetExecutionInstrumentDescription()})");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in ExecuteTheoreticalEntry: {ex.Message}");
-            }
+            Console.WriteLine($"Theoretical entry: {side} {positionSize} @ {entryPrice:F4} " +
+                            $"(Signal: {GetSignalSourceDescription()}, Execution: {GetExecutionInstrumentDescription()})");
         }
 
         /// <summary>
@@ -568,24 +544,17 @@ namespace StrategyManagement
         /// <param name="currentPosition">Current position size</param>
         protected void ExecuteTheoreticalExit(Bar[] bars, int currentPosition)
         {
-            try
-            {
-                Bar signalBar = GetSignalBar(bars);
-                OrderSide exitSide = currentPosition > 0 ? OrderSide.Sell : OrderSide.Buy;
-                int exitSize = Math.Abs(currentPosition);
+            Bar signalBar = GetSignalBar(bars);
+            OrderSide exitSide = currentPosition > 0 ? OrderSide.Sell : OrderSide.Buy;
+            int exitSize = Math.Abs(currentPosition);
 
-                Bar bar = GetExecutionInstrumentBar(bars);  
-                double exitPrice = bar.Close;
+            Bar bar = GetExecutionInstrumentBar(bars);  
+            double exitPrice = bar.Close;
 
-                DualPositionManager?.UpdateTheoPosition(signalBar.DateTime, exitSide, exitSize, exitPrice);
+            DualPositionManager?.UpdateTheoPosition(signalBar.DateTime, exitSide, exitSize, exitPrice);
 
-                Console.WriteLine($"Theoretical exit: {exitSide} {exitSize} @ {exitPrice:F4} " +
-                                $"(Signal: {GetSignalSourceDescription()}, Execution: {GetExecutionInstrumentDescription()})");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in ExecuteTheoreticalExit: {ex.Message}");
-            }
+            Console.WriteLine($"Theoretical exit: {exitSide} {exitSize} @ {exitPrice:F4} " +
+                            $"(Signal: {GetSignalSourceDescription()}, Execution: {GetExecutionInstrumentDescription()})");
         }
 
         /// <summary>
@@ -611,17 +580,10 @@ namespace StrategyManagement
         /// </summary>
         protected void CancelCurrentOrder()
         {
-            try
+            if (TradeManager?.HasLiveOrder == true)
             {
-                if (TradeManager?.HasLiveOrder == true)
-                {
-                    TradeManager.CancelOrder(TradeManager.CurrentOrderId);
-                    Console.WriteLine("Current order cancelled");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error cancelling order: {ex.Message}");
+                TradeManager.CancelOrder(TradeManager.CurrentOrderId);
+                Console.WriteLine("Current order cancelled");
             }
         }
 
@@ -635,21 +597,14 @@ namespace StrategyManagement
         /// <param name="fill">Fill event</param>
         public virtual void OnFill(Fill fill)
         {
-            try
-            {
-                DualPositionManager?.UpdateActualPosition(
-                    fill.DateTime,
-                    fill.Side,
-                    (int)fill.Qty,
-                    fill.Price
-                );
+            DualPositionManager?.UpdateActualPosition(
+                fill.DateTime,
+                fill.Side,
+                (int)fill.Qty,
+                fill.Price
+            );
 
-                Console.WriteLine($"Fill processed: {fill.Side} {fill.Qty} @ {fill.Price:F4}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error processing fill: {ex.Message}");
-            }
+            Console.WriteLine($"Fill processed: {fill.Side} {fill.Qty} @ {fill.Price:F4}");
         }
 
         /// <summary>
@@ -658,14 +613,7 @@ namespace StrategyManagement
         /// <param name="order">Order event</param>
         public virtual void OnOrderEvent(Order order)
         {
-            try
-            {
-                TradeManager.HandleOrderUpdate(order);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error handling order event: {ex.Message}");
-            }
+            TradeManager.HandleOrderUpdate(order);
         }
 
         /// <summary>
@@ -673,16 +621,9 @@ namespace StrategyManagement
         /// </summary>
         public virtual void OnStrategyStart()
         {
-            try
-            {
-                Console.WriteLine($"Strategy {Name} started");
-                Console.WriteLine($"Configuration: {GetConfigurationDescription()}");
-                ValidateSignalExecutionConfiguration();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in OnStrategyStart: {ex.Message}");
-            }
+            Console.WriteLine($"Strategy {Name} started");
+            Console.WriteLine($"Configuration: {GetConfigurationDescription()}");
+            ValidateSignalExecutionConfiguration();
         }
 
         /// <summary>
@@ -690,19 +631,12 @@ namespace StrategyManagement
         /// </summary>
         public virtual void OnStrategyStop()
         {
-            try
+            if (Parameters?.is_write_metrics == true)
             {
-                if (Parameters?.is_write_metrics == true)
-                {
-                    DualPositionManager?.SaveAllMetrics();
-                    Console.WriteLine("Metrics saved");
-                }
-                Console.WriteLine($"Strategy {Name} stopped");
+                DualPositionManager?.SaveAllMetrics();
+                Console.WriteLine("Metrics saved");
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in OnStrategyStop: {ex.Message}");
-            }
+            Console.WriteLine($"Strategy {Name} stopped");
         }
 
         // Default implementations for market data - override if needed
@@ -715,40 +649,7 @@ namespace StrategyManagement
 
         #region Abstract Methods - Must be implemented by concrete strategies
 
-        /// <summary>
-        /// Process bar data and make trading decisions
-        /// </summary>
-        /// <param name="bars">Array of bars</param>
-        /// <param name="accountValue">Current account value</param>
-        public abstract void ProcessBar(Bar[] bars);
 
-        /// <summary>
-        /// Determine if should enter long position
-        /// </summary>
-        /// <param name="bars">Array of bars</param>
-        /// <returns>True if should enter long</returns>
-        public abstract bool ShouldEnterLongPosition(Bar[] bars);
-
-        /// <summary>
-        /// Determine if should enter short position
-        /// </summary>
-        /// <param name="bars">Array of bars</param>
-        /// <returns>True if should enter short</returns>
-        public abstract bool ShouldEnterShortPosition(Bar[] bars);
-
-        /// <summary>
-        /// Determine if should exit long position
-        /// </summary>
-        /// <param name="bars">Array of bars</param>
-        /// <returns>True if should exit long</returns>
-        public abstract bool ShouldExitLongPosition(Bar[] bars);
-
-        /// <summary>
-        /// Determine if should exit short position
-        /// </summary>
-        /// <param name="bars">Array of bars</param>
-        /// <returns>True if should exit short</returns>
-        public abstract bool ShouldExitShortPosition(Bar[] bars);
 
         #endregion
     }

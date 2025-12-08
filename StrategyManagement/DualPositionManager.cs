@@ -112,32 +112,25 @@ namespace StrategyManagement
         {
             string outputPath = System.IO.Path.Combine(@"C:\tmp\Template", "performance_comparison.csv");
 
-            try
+            using (var sw = new System.IO.StreamWriter(outputPath, false))
             {
-                using (var sw = new System.IO.StreamWriter(outputPath, false))
-                {
-                    sw.WriteLine("Metric,Theoretical,Actual,Difference,Percentage");
+                sw.WriteLine("Metric,Theoretical,Actual,Difference,Percentage");
 
-                    double theoPnL = theoPositionManager.RealizedPnL + theoPositionManager.UnrealizedPnL;
-                    double actualPnL = actualPositionManager.RealizedPnL + actualPositionManager.UnrealizedPnL;
-                    double pnlDiff = theoPnL - actualPnL;
-                    double pnlPct = actualPnL != 0 ? (pnlDiff / Math.Abs(actualPnL)) * 100 : 0;
+                double theoPnL = theoPositionManager.RealizedPnL + theoPositionManager.UnrealizedPnL;
+                double actualPnL = actualPositionManager.RealizedPnL + actualPositionManager.UnrealizedPnL;
+                double pnlDiff = theoPnL - actualPnL;
+                double pnlPct = actualPnL != 0 ? (pnlDiff / Math.Abs(actualPnL)) * 100 : 0;
 
-                    sw.WriteLine($"Total PnL,{theoPnL:F2},{actualPnL:F2},{pnlDiff:F2},{pnlPct:F2}%");
-                    sw.WriteLine($"Realized PnL,{theoPositionManager.RealizedPnL:F2}," +
-                               $"{actualPositionManager.RealizedPnL:F2}," +
-                               $"{theoPositionManager.RealizedPnL - actualPositionManager.RealizedPnL:F2}");
-                    sw.WriteLine($"Unrealized PnL,{theoPositionManager.UnrealizedPnL:F2}," +
-                               $"{actualPositionManager.UnrealizedPnL:F2}," +
-                               $"{theoPositionManager.UnrealizedPnL - actualPositionManager.UnrealizedPnL:F2}");
-                    sw.WriteLine($"Trade Count,{theoPositionManager.CycleMetrics.Count}," +
-                               $"{actualPositionManager.CycleMetrics.Count}," +
-                               $"{theoPositionManager.CycleMetrics.Count - actualPositionManager.CycleMetrics.Count}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error saving comparison metrics: {ex.Message}");
+                sw.WriteLine($"Total PnL,{theoPnL:F2},{actualPnL:F2},{pnlDiff:F2},{pnlPct:F2}%");
+                sw.WriteLine($"Realized PnL,{theoPositionManager.RealizedPnL:F2}," +
+                           $"{actualPositionManager.RealizedPnL:F2}," +
+                           $"{theoPositionManager.RealizedPnL - actualPositionManager.RealizedPnL:F2}");
+                sw.WriteLine($"Unrealized PnL,{theoPositionManager.UnrealizedPnL:F2}," +
+                           $"{actualPositionManager.UnrealizedPnL:F2}," +
+                           $"{theoPositionManager.UnrealizedPnL - actualPositionManager.UnrealizedPnL:F2}");
+                sw.WriteLine($"Trade Count,{theoPositionManager.CycleMetrics.Count}," +
+                           $"{actualPositionManager.CycleMetrics.Count}," +
+                           $"{theoPositionManager.CycleMetrics.Count - actualPositionManager.CycleMetrics.Count}");
             }
         }
     }

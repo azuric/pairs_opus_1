@@ -194,16 +194,14 @@ namespace StrategyManagement
             }
         }
 
-        //metric logic
-        public override void ProcessBar(Bar[] bars)
+        // Consolidated bar processing and trading logic
+        public override void OnBar(Bar[] bars)
         {
             Bar signalBar = GetSignalBar(bars);
 
+            // 1. Calculate signal and statistics (from old ProcessBar)
             signal_ma = EMA(alpha, signalBar.Close, signal_ma);
-
-            // Update statistics
             priceWindow.Enqueue(signalBar.Close);
-
             signal = 10000 * ((signalBar.Close / signal_ma) - 1.0);
 
             if (priceWindow.Count > lookbackPeriod)
@@ -221,8 +219,6 @@ namespace StrategyManagement
                     dailyMad = mad;
                     currentDate = signalBar.CloseDateTime.Date;
                     mad = Math.Abs(signal);
-
-                    isStatisticsReady = true;
                 }
                 else if (Math.Abs(signal) > mad)
                 {
@@ -232,19 +228,12 @@ namespace StrategyManagement
 
             Data = AlphaManager.GetData();
 
-        }
-
-
-        //trade logic
-        public override void OnBar(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
-
+            // 2. Cancel any existing orders
             CancelCurrentOrder();
 
             int currentTheoPosition = GetCurrentTheoPosition();
 
-            // Check exits first
+            // 3. Check exit conditions (from old ShouldExit methods)
             if (currentTheoPosition != 0)
             {
                 if (ShouldExitPosition(bars, currentTheoPosition))
@@ -254,20 +243,24 @@ namespace StrategyManagement
                 }
             }
 
-            // Check entries
-            if (currentTheoPosition == 0 && !HasLiveOrder())
+            // 4. Check entry conditions (from old ShouldEnter methods)
+            if (currentTheoPosition == 0 && !HasLiveOrder() && isStatisticsReady)
             {
-                if (ShouldEnterLongPosition(bars))
+                // Check long entry
+                if (IsWithinTradingHours(signalBar.DateTime) && CanEnterNewPosition(signalBar.DateTime))
                 {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Buy);
-                }
-                else if (ShouldEnterShortPosition(bars))
-                {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Sell);
+                    if (signal > mad * entryThreshold)
+                    {
+                        ExecuteTheoreticalEntry(bars, OrderSide.Buy);
+                    }
+                    else if (signal < -mad * entryThreshold)
+                    {
+                        ExecuteTheoreticalEntry(bars, OrderSide.Sell);
+                    }
                 }
             }
 
-            // Update metrics
+            // 5. Update metrics
             DualPositionManager?.TheoPositionManager?.UpdateTradeMetric(signalBar);
             DualPositionManager?.ActualPositionManager?.UpdateTradeMetric(signalBar);
         }
@@ -299,32 +292,12 @@ namespace StrategyManagement
                 return signal > -exitThreshold;
         }
 
-        public override bool ShouldEnterLongPosition(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
-
-            if (!IsWithinTradingHours(signalBar.DateTime) || !CanEnterNewPosition(signalBar.DateTime))
-                return false;
 
             if (!isStatisticsReady)
                 return false;
 
             //double deviation = (signalBar.Close - movingAverage) / standardDeviation;
-            return signal > dailyMad * entryThreshold;
-        }
-
-        public override bool ShouldEnterShortPosition(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
-
-            if (!IsWithinTradingHours(signalBar.DateTime) || !CanEnterNewPosition(signalBar.DateTime))
-                return false;
-
-            if (!isStatisticsReady)
-                return false;
-
-            //double deviation = (signalBar.Close - movingAverage) / standardDeviation;
-            return signal < -dailyMad * entryThreshold;
+            return signal < -mad*entryThreshold;
         }
 
         public override bool ShouldExitLongPosition(Bar[] bars)

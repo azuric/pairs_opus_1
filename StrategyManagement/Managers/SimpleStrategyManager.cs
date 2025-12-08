@@ -15,26 +15,13 @@ namespace StrategyManagement
             barCount = 0;
         }
 
-        public override void ProcessBar(Bar[] bars)
-        {
-            // Simple strategy just maintains a position
-            int currentTheoPosition = GetCurrentTheoPosition();
-
-            if (currentTheoPosition == 0 && shouldEnter && !HasLiveOrder())
-            {
-                ExecuteTheoreticalEntry(bars, OrderSide.Buy);
-            }
-            else if (ShouldExitAllPositions(GetSignalBar(bars).DateTime) && currentTheoPosition != 0)
-            {
-                ExecuteTheoreticalExit(bars, currentTheoPosition);
-            }
-        }
-
+        // Consolidated bar processing and trading logic
         public override void OnBar(Bar[] bars)
         {
             barCount++;
             Bar signalBar = GetSignalBar(bars);
 
+            // 1. Log bar information
             Console.WriteLine($"Bar {barCount}: {signalBar.DateTime:yyyy-MM-dd HH:mm:ss} {signalBar.Close}");
 
             if (isPairMode && bars.Length > 2)
@@ -43,32 +30,28 @@ namespace StrategyManagement
             }
 
             shouldEnter = true;
+
+            // 2. Simple strategy logic (from old ProcessBar)
+            int currentTheoPosition = GetCurrentTheoPosition();
+
+            // Check exit conditions
+            if (ShouldExitAllPositions(signalBar.DateTime) && currentTheoPosition != 0)
+            {
+                ExecuteTheoreticalExit(bars, currentTheoPosition);
+                return;
+            }
+
+            // Check entry conditions
+            if (currentTheoPosition == 0 && shouldEnter && !HasLiveOrder())
+            {
+                if (IsWithinTradingHours(signalBar.DateTime))
+                {
+                    ExecuteTheoreticalEntry(bars, OrderSide.Buy);
+                }
+            }
         }
 
-        public override bool ShouldEnterLongPosition(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
 
-            if (!IsWithinTradingHours(signalBar.DateTime))
-                return false;
-
-            return GetCurrentTheoPosition() == 0 && shouldEnter;
-        }
-
-        public override bool ShouldEnterShortPosition(Bar[] bars)
-        {
-            return false; // Simple strategy doesn't short
-        }
-
-        public override bool ShouldExitLongPosition(Bar[] bars)
-        {
-            return ShouldExitAllPositions(GetSignalBar(bars).DateTime);
-        }
-
-        public override bool ShouldExitShortPosition(Bar[] bars)
-        {
-            return false;
-        }
 
     }
 }

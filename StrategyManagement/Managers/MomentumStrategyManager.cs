@@ -48,40 +48,12 @@ namespace StrategyManagement
             }
         }
 
-        public override void ProcessBar(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
-
-            CancelCurrentOrder();
-
-            int currentTheoPosition = GetCurrentTheoPosition();
-
-            if (currentTheoPosition != 0)
-            {
-                if (ShouldExitPosition(bars))
-                {
-                    ExecuteTheoreticalExit(bars, currentTheoPosition);
-                    return;
-                }
-            }
-
-            if (currentTheoPosition == 0 && !HasLiveOrder())
-            {
-                if (ShouldEnterLongPosition(bars))
-                {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Buy);
-                }
-                else if (ShouldEnterShortPosition(bars))
-                {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Sell);
-                }
-            }
-        }
-
+        // Consolidated bar processing and trading logic
         public override void OnBar(Bar[] bars)
         {
             Bar signalBar = GetSignalBar(bars);
 
+            // 1. Calculate momentum (from old OnBar)
             barHistory.Enqueue(signalBar);
             if (barHistory.Count > momentumPeriod)
             {
@@ -99,6 +71,37 @@ namespace StrategyManagement
                 Bar numBar = GetNumeratorBar(bars);
                 Bar denBar = GetDenominatorBar(bars);
                 // Could track separate momentum for analysis
+            }
+
+            // 2. Cancel any existing orders
+            CancelCurrentOrder();
+
+            int currentTheoPosition = GetCurrentTheoPosition();
+
+            // 3. Check exit conditions (from old ProcessBar)
+            if (currentTheoPosition != 0)
+            {
+                if (ShouldExitPosition(bars))
+                {
+                    ExecuteTheoreticalExit(bars, currentTheoPosition);
+                    return;
+                }
+            }
+
+            // 4. Check entry conditions (from old ShouldEnter methods)
+            if (currentTheoPosition == 0 && !HasLiveOrder() && barHistory.Count >= momentumPeriod)
+            {
+                if (IsWithinTradingHours(signalBar.DateTime) && CanEnterNewPosition(signalBar.DateTime))
+                {
+                    if (currentMomentum > entryMomentumThreshold)
+                    {
+                        ExecuteTheoreticalEntry(bars, OrderSide.Buy);
+                    }
+                    else if (currentMomentum < -entryMomentumThreshold)
+                    {
+                        ExecuteTheoreticalEntry(bars, OrderSide.Sell);
+                    }
+                }
             }
         }
 
@@ -123,41 +126,7 @@ namespace StrategyManagement
             return false;
         }
 
-        public override bool ShouldEnterLongPosition(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
 
-            if (!IsWithinTradingHours(signalBar.DateTime) || !CanEnterNewPosition(signalBar.DateTime))
-                return false;
-
-            if (barHistory.Count < momentumPeriod)
-                return false;
-
-            return currentMomentum > entryMomentumThreshold;
-        }
-
-        public override bool ShouldEnterShortPosition(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
-
-            if (!IsWithinTradingHours(signalBar.DateTime) || !CanEnterNewPosition(signalBar.DateTime))
-                return false;
-
-            if (barHistory.Count < momentumPeriod)
-                return false;
-
-            return currentMomentum < -entryMomentumThreshold;
-        }
-
-        public override bool ShouldExitLongPosition(Bar[] bars)
-        {
-            return GetCurrentTheoPosition() > 0 && ShouldExitPosition(bars);
-        }
-
-        public override bool ShouldExitShortPosition(Bar[] bars)
-        {
-            return GetCurrentTheoPosition() < 0 && ShouldExitPosition(bars);
-        }
 
         private void CalculateMomentum()
         {
