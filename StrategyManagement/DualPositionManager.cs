@@ -59,7 +59,7 @@ namespace StrategyManagement
             }
         }
 
-        public int CheckTheoActual()
+        public int CheckTheoActual(DateTime datetime)
         {
             lock (lockObject)
             {
@@ -67,9 +67,14 @@ namespace StrategyManagement
                 int actualPos = actualPositionManager.CurrentPosition;
                 int discrepancy = theoPos - actualPos;
 
+                if (discrepancy == 12)
+                {
+                    Console.WriteLine("");
+                }
+
                 if (discrepancy != 0)
                 {
-                    Console.WriteLine($"Position Discrepancy: Theo={theoPos}, Actual={actualPos}, " +
+                    Console.WriteLine(datetime + " " + $"Position Discrepancy: Theo={theoPos}, Actual={actualPos}, " +
                                     $"Diff={discrepancy}");
                 }
 

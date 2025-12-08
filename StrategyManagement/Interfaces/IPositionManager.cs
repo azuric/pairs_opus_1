@@ -89,7 +89,7 @@ namespace StrategyManagement
         /// <summary>
         /// Check and reconcile theoretical vs actual positions
         /// </summary>
-        int CheckTheoActual();
+        int CheckTheoActual(DateTime closeDateTime);
 
         /// <summary>
         /// Update theoretical position

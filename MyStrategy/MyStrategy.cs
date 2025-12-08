@@ -292,8 +292,9 @@ namespace OpenQuant
 
                 // Check reconciliation
                 if (StrategyParameters.useCheckAndReconcile)
+                {
                     CheckAndReconcilePositions(barsToProcess);
-
+                }
             }
         }
 
@@ -407,7 +408,9 @@ namespace OpenQuant
         {
             if (DualPositionManager == null) return;
 
-            int discrepancy = DualPositionManager.CheckTheoActual();
+            DateTime closeDateTime = bars[0].CloseDateTime;
+
+            int discrepancy = DualPositionManager.CheckTheoActual(closeDateTime);
 
             // If there's a discrepancy and no live order, place an order to reconcile
             if (discrepancy != 0 && !tradeManager.HasLiveOrder)
@@ -418,9 +421,25 @@ namespace OpenQuant
                 // FIXED: Get the correct trading instrument
                 Instrument tradingInstrument = GetTradingInstrument();
 
+                // Check for null BEFORE accessing properties
+                if (tradingInstrument == null)
+                {
+                    Console.WriteLine("ERROR: Cannot reconcile positions - trading instrument is null");
+                    //return;
+                }
+
+                // Also check if Bar exists
+                if (tradingInstrument.Bar == null)
+                {
+                    Console.WriteLine("ERROR: Cannot reconcile positions - no bar data available");
+                    //return;
+                }
+
                 var price = tradingInstrument.Bar.Close;
 
                 Console.WriteLine($"Reconciling positions: placing {side} order for {quantity} @ {price}");
+
+
 
                 if (tradingInstrument != null)
                 {

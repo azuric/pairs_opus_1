@@ -5,8 +5,7 @@ using Parameters;
 using SmartQuant.Strategy_;
 using SmartQuant.Component;
 using System.Linq;
-using MathNet.Numerics.LinearAlgebra;
-using System.Security.Cryptography;
+
 using Newtonsoft.Json.Linq;
 
 namespace StrategyManagement
@@ -25,7 +24,7 @@ namespace StrategyManagement
         private bool isStatisticsReady;
         private int FeatureCount { get; set; }
         public double[] Features { get; private set; }
-        public Matrix<double> BinsMatrix { get; private set; }
+        public SimpleMatrix<double> BinsMatrix { get; private set; }
         public double[] WeightsArray { get; protected set; }
         public double[] Data { get; private set; }
 
@@ -94,7 +93,7 @@ namespace StrategyManagement
 
             // Convert and create bins matrix
             var binsArray_ = ConvertJaggedToMulti(binsArray);
-            BinsMatrix = Matrix<double>.Build.DenseOfArray(binsArray_);
+            BinsMatrix = SimpleMatrix<double>.Build.DenseOfArray(binsArray_);
 
             Console.WriteLine("Matrix from JSON using Math.NET Numerics:");
             Console.WriteLine(BinsMatrix.ToString());
@@ -311,7 +310,7 @@ namespace StrategyManagement
                 return false;
 
             //double deviation = (signalBar.Close - movingAverage) / standardDeviation;
-            return signal > mad*entryThreshold;
+            return signal > dailyMad * entryThreshold;
         }
 
         public override bool ShouldEnterShortPosition(Bar[] bars)
@@ -325,7 +324,7 @@ namespace StrategyManagement
                 return false;
 
             //double deviation = (signalBar.Close - movingAverage) / standardDeviation;
-            return signal < -mad*entryThreshold;
+            return signal < -dailyMad * entryThreshold;
         }
 
         public override bool ShouldExitLongPosition(Bar[] bars)
@@ -393,13 +392,13 @@ namespace StrategyManagement
         }
 
         // Binning methods
-        public Matrix<double> GetBins(Matrix<double> bin, double[] alphas)
+        public SimpleMatrix<double> GetBins(SimpleMatrix<double> bin, double[] alphas)
         {
             int rows = bin.RowCount;
             int cols = bin.ColumnCount;
             int bins = bin.ColumnCount - 1;
 
-            var outputMatrix = Matrix<double>.Build.Dense(rows, bins);
+            var outputMatrix = SimpleMatrix<double>.Build.Dense(rows, bins);
 
             for (int i = 0; i < rows; i++)
             {
@@ -424,7 +423,7 @@ namespace StrategyManagement
             return outputMatrix;
         }
 
-        public double[] GetBinnedFeaturesArray(Matrix<double> bin, double[] alphas)
+        public double[] GetBinnedFeaturesArray(SimpleMatrix<double> bin, double[] alphas)
         {
             int rows = bin.RowCount;
             int cols = bin.ColumnCount;

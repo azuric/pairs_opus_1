@@ -30,9 +30,9 @@ namespace StrategyManagement
             base.Initialize(parameters); // This now handles both signal and trade configuration
 
             // Existing parameter initialization...
-            lookbackPeriod = 120;
-            entryThreshold = 2.0;
-            exitThreshold = 0.1;
+            lookbackPeriod = 240;
+            entryThreshold = 1.5;
+            exitThreshold = 0.5;
             stopLossPercent = 0.03;
             takeProfitPercent = 0.05;
 

@@ -69,14 +69,14 @@ namespace OpenQuant
             StrategyManager.Global["tag"] = splitString[0];
             string jsonPath = "";
 
-            if (args.Length == 2)
-            {
-                jsonPath = Path.Combine(TRADE_ROOT, parameterFile + ".json");
-            }
-            else
-            {
+            //if (args.Length == 2)
+            //{
+            //    jsonPath = Path.Combine(TRADE_ROOT, parameterFile + ".json");
+            //}
+            //else
+            //{
                 jsonPath = @"D:\test_tags\" + splitString[0] + ".json";
-            }
+            //}
 
             Console.WriteLine($"Loading parameters from: {jsonPath}");
 
@@ -138,8 +138,8 @@ namespace OpenQuant
             Console.WriteLine("\nConfiguring simulation settings...");
 
             // Set simulation date range
-            DataSimulator.DateTime1 = new DateTime(2022, 12, 27);
-            DataSimulator.DateTime2 = new DateTime(2025, 12, 1);
+            DataSimulator.DateTime1 = new DateTime(2023, 1, 1);
+            DataSimulator.DateTime2 = new DateTime(2025, 12, 31);
 
             Console.WriteLine($"Simulation period: {DataSimulator.DateTime1:yyyy-MM-dd} to {DataSimulator.DateTime2:yyyy-MM-dd}");
 
@@ -290,11 +290,11 @@ namespace OpenQuant
             {
                 case "num":
                     inst = numInstrument;
-                    return;
+                    break;
 
                 case "den":
                     inst = denInstrument;
-                    return;
+                    break;
 
             }
 

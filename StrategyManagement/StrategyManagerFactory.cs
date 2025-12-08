@@ -20,6 +20,9 @@ namespace StrategyManagement
                 case "mean_reversion":
                     return new MeanReversionStrategyManager(tradeInstrument);
 
+                case "mean_reversion_filter":
+                    return new MeanReversionStrategyManagerFilter(tradeInstrument);
+
                 case "mom":
                     return new MomStrategyManager(tradeInstrument);
 
@@ -69,16 +72,17 @@ namespace StrategyManagement
             {
                 var nameLower = parameters.strategy_type.ToLowerInvariant();
 
+                if (nameLower.Contains("mean_reversion_filter"))
+                    return "mean_reversion_filter";
+
                 if (nameLower.Contains("mean") || nameLower.Contains("reversion"))
                     return "mean_reversion";
-
 
                 if (nameLower.Contains("mom_filter"))
                     return "mom_filter";
 
                 if (nameLower.Contains("mom"))
                     return "mom";
-
 
                 if (nameLower.Contains("momentum") || nameLower.Contains("trend"))
                     return "momentum";

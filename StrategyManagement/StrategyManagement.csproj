@@ -60,6 +60,7 @@
     <Compile Include="Interfaces\IStrategyManager.cs" />
     <Compile Include="Interfaces\ITradeManager.cs" />
     <Compile Include="Managers\BaseStrategyManager.cs" />
+    <Compile Include="Managers\MeanReversionStrategyManagerFilter.cs" />
     <Compile Include="Managers\MomStrategyManager.cs" />
     <Compile Include="Managers\MomentumMultiLevelStrategyManager.cs" />
     <Compile Include="Managers\MomPairUSStrategyManager.cs" />
@@ -72,6 +73,7 @@
     <Compile Include="RefactoredPositionManager.cs" />
     <Compile Include="RefactoredTradeManager.cs" />
     <Compile Include="SignalSource.cs" />
+    <Compile Include="SimpleMatrix.cs" />
     <Compile Include="StrategyManagerFactory.cs" />
   </ItemGroup>
   <ItemGroup>
