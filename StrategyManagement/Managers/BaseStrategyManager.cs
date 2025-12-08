@@ -649,40 +649,7 @@ namespace StrategyManagement
 
         #region Abstract Methods - Must be implemented by concrete strategies
 
-        /// <summary>
-        /// Process bar data and make trading decisions
-        /// </summary>
-        /// <param name="bars">Array of bars</param>
-        /// <param name="accountValue">Current account value</param>
-        public abstract void ProcessBar(Bar[] bars);
 
-        /// <summary>
-        /// Determine if should enter long position
-        /// </summary>
-        /// <param name="bars">Array of bars</param>
-        /// <returns>True if should enter long</returns>
-        public abstract bool ShouldEnterLongPosition(Bar[] bars);
-
-        /// <summary>
-        /// Determine if should enter short position
-        /// </summary>
-        /// <param name="bars">Array of bars</param>
-        /// <returns>True if should enter short</returns>
-        public abstract bool ShouldEnterShortPosition(Bar[] bars);
-
-        /// <summary>
-        /// Determine if should exit long position
-        /// </summary>
-        /// <param name="bars">Array of bars</param>
-        /// <returns>True if should exit long</returns>
-        public abstract bool ShouldExitLongPosition(Bar[] bars);
-
-        /// <summary>
-        /// Determine if should exit short position
-        /// </summary>
-        /// <param name="bars">Array of bars</param>
-        /// <returns>True if should exit short</returns>
-        public abstract bool ShouldExitShortPosition(Bar[] bars);
 
         #endregion
     }

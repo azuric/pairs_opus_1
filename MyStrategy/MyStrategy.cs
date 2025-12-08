@@ -276,9 +276,7 @@ namespace OpenQuant
 
                 alphaManager.Update(Bars);
 
-                // Pass array to strategy manager
-                strategyManager.ProcessBar(barsToProcess);
-
+                // Pass array to strategy manager - all logic now in OnBar
                 strategyManager.OnBar(barsToProcess);
 
                 // Check reconciliation

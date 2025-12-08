@@ -127,54 +127,14 @@ namespace StrategyManagement
             }
         }
 
-        public override void ProcessBar(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
-            CancelCurrentOrder();
-            int currentTheoPosition = GetCurrentTheoPosition();
-
-            if (Math.Abs(currentTheoPosition) > 1)
-                Console.WriteLine();
-
-            // CRITICAL FIX: Check forced exit time FIRST
-            if (currentTheoPosition != 0 && ShouldExitAllPositions(signalBar.DateTime) && !HasLiveOrder())
-            {
-                Console.WriteLine($"FORCED EXIT at {signalBar.DateTime}: Closing position {currentTheoPosition}");
-                ExecuteTheoreticalExit(bars, currentTheoPosition);
-                return;
-            }
-
-            // Check normal exits
-            else if (currentTheoPosition != 0 && !HasLiveOrder())
-            {
-                if (ShouldExitPosition(bars, currentTheoPosition))
-                {
-                    ExecuteTheoreticalExit(bars, currentTheoPosition);
-                    return;
-                }
-            }
-
-            // Check entries
-            if (currentTheoPosition == 0 && !HasLiveOrder())
-            {
-                if (ShouldEnterLongPosition(bars))
-                {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Buy);
-                }
-                else if (ShouldEnterShortPosition(bars))
-                {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Sell);
-                }
-            }
-        }
-
+        // Consolidated bar processing and trading logic
         public override void OnBar(Bar[] bars)
         {
             Bar signalBar = GetSignalBar(bars);
             Bar tradeBar = GetExecutionInstrumentBar(bars);
 
+            // 1. Calculate signal and statistics (from old OnBar)
             signal_ma = EMA(alpha, signalBar.Close, signal_ma);
-
             signal = (signalBar.Close / signal_ma) - 1.0;
 
             if (tradeBar.CloseDateTime.TimeOfDay == new TimeSpan(21, 0, 0))
@@ -197,7 +157,6 @@ namespace StrategyManagement
                 dailyMad = mad;
                 currentDate = signalBar.CloseDateTime.Date;
                 mad = Math.Abs(signal);
-
                 isStatisticsReady = true;
             }
             else if (Math.Abs(signal) > mad)
@@ -205,7 +164,61 @@ namespace StrategyManagement
                 mad = Math.Abs(signal);
             }
 
-            // Update metrics
+            // 2. Cancel any existing orders
+            CancelCurrentOrder();
+            int currentTheoPosition = GetCurrentTheoPosition();
+
+            if (Math.Abs(currentTheoPosition) > 1)
+                Console.WriteLine();
+
+            // 3. Check forced exit time FIRST (from old ProcessBar)
+            if (currentTheoPosition != 0 && ShouldExitAllPositions(signalBar.DateTime) && !HasLiveOrder())
+            {
+                Console.WriteLine($"FORCED EXIT at {signalBar.DateTime}: Closing position {currentTheoPosition}");
+                ExecuteTheoreticalExit(bars, currentTheoPosition);
+                return;
+            }
+
+            // 4. Check normal exit conditions
+            if (currentTheoPosition != 0 && !HasLiveOrder())
+            {
+                if (ShouldExitPosition(bars, currentTheoPosition))
+                {
+                    ExecuteTheoreticalExit(bars, currentTheoPosition);
+                    return;
+                }
+            }
+
+            // 5. Check entry conditions (from old ShouldEnter methods)
+            if (currentTheoPosition == 0 && !HasLiveOrder() && isStatisticsReady)
+            {
+                if (IsWithinTradingHours(signalBar.DateTime) && CanEnterNewPosition(signalBar.DateTime))
+                {
+                    // Long entry logic
+                    bool isLongSignal = signal > Math.Max(dailyMad * entryThreshold, minimumThreshold) && signal < maximumThreshold;
+                    bool isLongTimeFilter = ((OpenAtElevenBps < overNightSundayThreshHigh && OpenAtElevenBps > overNightSundayThreshLow && signalBar.CloseDateTime.DayOfWeek == DayOfWeek.Sunday)
+                        || (OvernightBps < overNightThreshHigh && OvernightBps > overNightThreshLow && signalBar.CloseDateTime.DayOfWeek != DayOfWeek.Sunday));
+
+                    if (isLongSignal && isLongTimeFilter)
+                    {
+                        ExecuteTheoreticalEntry(bars, OrderSide.Buy);
+                    }
+                    else
+                    {
+                        // Short entry logic
+                        bool isShortSignal = signal < Math.Min(-dailyMad * entryThreshold, -minimumThreshold) && signal > -maximumThreshold;
+                        bool isShortTimeFilter = ((OpenAtElevenBps > -overNightSundayThreshHighS && OpenAtElevenBps < -overNightSundayThreshLowS && signalBar.CloseDateTime.DayOfWeek == DayOfWeek.Sunday)
+                            || (OvernightBps > -overNightThreshHighS && OvernightBps < -overNightThreshLowS && signalBar.CloseDateTime.DayOfWeek != DayOfWeek.Sunday));
+
+                        if (isShortSignal)
+                        {
+                            ExecuteTheoreticalEntry(bars, OrderSide.Sell);
+                        }
+                    }
+                }
+            }
+
+            // 6. Update metrics
             DualPositionManager?.TheoPositionManager?.UpdateTradeMetric(tradeBar);
             DualPositionManager?.ActualPositionManager?.UpdateTradeMetric(tradeBar);
         }
@@ -238,51 +251,7 @@ namespace StrategyManagement
                 return signal > exitThreshold;
         }
 
-        public override bool ShouldEnterLongPosition(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
 
-            if (!IsWithinTradingHours(signalBar.DateTime) || !CanEnterNewPosition(signalBar.DateTime))
-                return false;
-
-            if (!isStatisticsReady)
-                return false;
-
-            bool isSignal = signal > Math.Max(dailyMad * entryThreshold, minimumThreshold) && signal < maximumThreshold;
-            bool isTimeFilter = ((OpenAtElevenBps < overNightSundayThreshHigh && OpenAtElevenBps > overNightSundayThreshLow && signalBar.CloseDateTime.DayOfWeek == DayOfWeek.Sunday)
-                || (OvernightBps < overNightThreshHigh && OvernightBps > overNightThreshLow && signalBar.CloseDateTime.DayOfWeek != DayOfWeek.Sunday));
-
-            return isSignal && isTimeFilter;
-        }
-
-        public override bool ShouldEnterShortPosition(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
-
-            if (!IsWithinTradingHours(signalBar.DateTime) || !CanEnterNewPosition(signalBar.DateTime))
-                return false;
-
-            if (!isStatisticsReady)
-                return false;
-
-            bool isSignal = signal < Math.Min(-dailyMad * entryThreshold, -minimumThreshold) && signal > -maximumThreshold;
-            bool isTimeFilter = ((OpenAtElevenBps > -overNightSundayThreshHighS && OpenAtElevenBps < -overNightSundayThreshLowS && signalBar.CloseDateTime.DayOfWeek == DayOfWeek.Sunday)
-                || (OvernightBps > -overNightThreshHighS && OvernightBps < -overNightThreshLowS && signalBar.CloseDateTime.DayOfWeek != DayOfWeek.Sunday));
-
-            return isSignal;
-        }
-
-        public override bool ShouldExitLongPosition(Bar[] bars)
-        {
-            int pos = GetCurrentTheoPosition();
-            return pos > 0 && ShouldExitPosition(bars, pos);
-        }
-
-        public override bool ShouldExitShortPosition(Bar[] bars)
-        {
-            int pos = GetCurrentTheoPosition();
-            return pos < 0 && ShouldExitPosition(bars, pos);
-        }
 
         private double CalculateUnrealizedPnLPercent(double currentPrice)
         {

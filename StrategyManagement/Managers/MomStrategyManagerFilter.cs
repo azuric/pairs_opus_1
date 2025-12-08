@@ -207,15 +207,16 @@ namespace StrategyManagement
             return null;
         }
 
+        // Consolidated bar processing and trading logic
         public override void OnBar(Bar[] bars)
         {
             Bar signalBar = GetSignalBar(bars);
             Bar executionBar = GetExecutionInstrumentBar(bars);
 
-            // Update signal and statistics
+            // 1. Update signal and statistics
             UpdateSignalAndStatistics(signalBar);
 
-            // Get features from AlphaManager and extract our 24 features
+            // 2. Get features from AlphaManager and extract our 24 features
             Data = AlphaManager.GetData();
 
             if (Data != null && Data.Length > 0)
@@ -223,12 +224,12 @@ namespace StrategyManagement
                 UpdateFeaturesFromData(Data);
             }
 
-            // Cancel any pending orders
+            // 3. Cancel any pending orders
             CancelCurrentOrder();
 
             int currentTheoPosition = GetCurrentTheoPosition();
 
-            // Check exits first
+            // 4. Check exit conditions first
             if (currentTheoPosition != 0)
             {
                 if (ShouldExitPosition(bars, currentTheoPosition))
@@ -239,27 +240,67 @@ namespace StrategyManagement
                 }
             }
 
-            // Check entries - ONLY if no position
-            if (currentTheoPosition == 0 && !HasLiveOrder())
+            // 5. Check entry conditions (from old ShouldEnter methods) - ONLY if no position
+            if (currentTheoPosition == 0 && !HasLiveOrder() && isStatisticsReady)
             {
-                if (ShouldEnterLongPosition(bars))
+                // Check long entry with filter
+                if (IsWithinTradingHours(signalBar.DateTime) && CanEnterNewPosition(signalBar.DateTime))
                 {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Buy);
-                    // Reset signal state after entry to prevent re-entry
-                    WriteTradeMetrics(bars, OrderSide.Buy, 0);
-                    longSignalActive = false;
-                    longSignalFilterPassed = false;
-                }
-                else if (ShouldEnterShortPosition(bars))
-                {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Sell);
-                    // Reset signal state after entry to prevent re-entry
-                    shortSignalActive = false;
-                    shortSignalFilterPassed = false;
+                    bool longSignalTriggered = signal > mad * entryThreshold;
+                    
+                    // SIGNAL STATE TRACKING - Check filter only once per signal breach
+                    if (longSignalTriggered && !longSignalActive)
+                    {
+                        longSignalActive = true;
+                        longSignalFilterPassed = PassesFilter();
+                    }
+                    
+                    // If signal dropped below threshold, reset for next signal
+                    if (!longSignalTriggered && longSignalActive)
+                    {
+                        longSignalActive = false;
+                        longSignalFilterPassed = false;
+                    }
+                    
+                    // Enter long if signal is active AND filter passed
+                    if (longSignalActive && longSignalFilterPassed)
+                    {
+                        ExecuteTheoreticalEntry(bars, OrderSide.Buy);
+                        WriteTradeMetrics(bars, OrderSide.Buy, 0);
+                        longSignalActive = false;
+                        longSignalFilterPassed = false;
+                    }
+                    else
+                    {
+                        // Check short entry with filter
+                        bool shortSignalTriggered = signal < -mad * entryThreshold;
+                        
+                        // SIGNAL STATE TRACKING - Check filter only once per signal breach
+                        if (shortSignalTriggered && !shortSignalActive)
+                        {
+                            shortSignalActive = true;
+                            shortSignalFilterPassed = PassesFilter();
+                        }
+                        
+                        // If signal rose above threshold, reset for next signal
+                        if (!shortSignalTriggered && shortSignalActive)
+                        {
+                            shortSignalActive = false;
+                            shortSignalFilterPassed = false;
+                        }
+                        
+                        // Enter short if signal is active AND filter passed
+                        if (shortSignalActive && shortSignalFilterPassed)
+                        {
+                            ExecuteTheoreticalEntry(bars, OrderSide.Sell);
+                            shortSignalActive = false;
+                            shortSignalFilterPassed = false;
+                        }
+                    }
                 }
             }
 
-            // Update metrics
+            // 6. Update metrics
             UpdateMetrics(signalBar);
         }
 
@@ -317,75 +358,7 @@ namespace StrategyManagement
                 return signal > -exitThreshold;
         }
 
-        public override bool ShouldEnterLongPosition(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
 
-            // Basic checks
-            if (!IsWithinTradingHours(signalBar.DateTime) || !CanEnterNewPosition(signalBar.DateTime))
-                return false;
-
-            if (!isStatisticsReady)
-                return false;
-
-            // Check if signal is above threshold
-            bool signalTriggered = signal > mad * entryThreshold;
-
-            // SIGNAL STATE TRACKING - Check filter only once per signal breach
-            if (signalTriggered && !longSignalActive)
-            {
-                // NEW SIGNAL - Check filter once
-                longSignalActive = true;
-                longSignalFilterPassed = PassesFilter();
-
-                //Console.WriteLine($"[NEW LONG SIGNAL] {signalBar.DateTime:yyyy-MM-dd HH:mm:ss} Signal={signal:F2} MAD*Thresh={mad * entryThreshold:F2} Filter={longSignalFilterPassed}");
-            }
-
-            // If signal dropped below threshold, reset for next signal
-            if (!signalTriggered && longSignalActive)
-            {
-                longSignalActive = false;
-                longSignalFilterPassed = false;
-            }
-
-            // Only enter if signal is active AND filter passed
-            return longSignalActive && longSignalFilterPassed;
-        }
-
-        public override bool ShouldEnterShortPosition(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
-
-            // Basic checks
-            if (!IsWithinTradingHours(signalBar.DateTime) || !CanEnterNewPosition(signalBar.DateTime))
-                return false;
-
-            if (!isStatisticsReady)
-                return false;
-
-            // Check if signal is below threshold
-            bool signalTriggered = signal < -mad * entryThreshold;
-
-            // SIGNAL STATE TRACKING - Check filter only once per signal breach
-            if (signalTriggered && !shortSignalActive)
-            {
-                // NEW SIGNAL - Check filter once
-                shortSignalActive = true;
-                shortSignalFilterPassed = PassesFilter();
-
-                //Console.WriteLine($"[NEW SHORT SIGNAL] {signalBar.DateTime:yyyy-MM-dd HH:mm:ss} Signal={signal:F2} MAD*Thresh={-mad * entryThreshold:F2} Filter={shortSignalFilterPassed}");
-            }
-
-            // If signal rose above threshold, reset for next signal
-            if (!signalTriggered && shortSignalActive)
-            {
-                shortSignalActive = false;
-                shortSignalFilterPassed = false;
-            }
-
-            // Only enter if signal is active AND filter passed
-            return shortSignalActive && shortSignalFilterPassed;
-        }
 
         private bool PassesFilter()
         {
@@ -417,17 +390,7 @@ namespace StrategyManagement
             return score;
         }
 
-        public override bool ShouldExitLongPosition(Bar[] bars)
-        {
-            int pos = GetCurrentTheoPosition();
-            return pos > 0 && ShouldExitPosition(bars, pos);
-        }
 
-        public override bool ShouldExitShortPosition(Bar[] bars)
-        {
-            int pos = GetCurrentTheoPosition();
-            return pos < 0 && ShouldExitPosition(bars, pos);
-        }
 
         private void CalculateStatistics()
         {

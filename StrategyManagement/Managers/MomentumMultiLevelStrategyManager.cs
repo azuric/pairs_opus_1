@@ -157,9 +157,7 @@ namespace StrategyManagement
             }
         }
 
-        public override void ProcessBar(Bar[] bars)
-        {
-        }
+
 
         /// <summary>
         /// Clear, explicit entry logic - user has full control
@@ -606,30 +604,9 @@ namespace StrategyManagement
 
         #region Required Interface Methods - Minimal Implementation
 
-        public void ProcessBar(Bar[] bars, double accountValue)
-        {
-            ProcessBar(bars); // Delegate to simpler version
-        }
 
-        public override bool ShouldEnterLongPosition(Bar[] bars)
-        {
-            return bars?.Length > 0 && ShouldEnterLong(bars[0]);
-        }
 
-        public override bool ShouldEnterShortPosition(Bar[] bars)
-        {
-            return bars?.Length > 0 && ShouldEnterShort(bars[0]);
-        }
 
-        public override bool ShouldExitLongPosition(Bar[] bars)
-        {
-            return currentPosition > 0 && (bars?.Length > 0 && ShouldForceExitAll(bars[0].DateTime));
-        }
-
-        public override bool ShouldExitShortPosition(Bar[] bars)
-        {
-            return currentPosition < 0 && (bars?.Length > 0 && ShouldForceExitAll(bars[0].DateTime));
-        }
 
         #endregion
 

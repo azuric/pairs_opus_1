@@ -85,43 +85,12 @@ namespace StrategyManagement
             }
         }
 
-        public override void ProcessBar(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
-
-            CancelCurrentOrder();
-
-            int currentTheoPosition = GetCurrentTheoPosition();
-
-            // Check exits first
-            if (currentTheoPosition != 0)
-            {
-                if (ShouldExitPosition(bars, currentTheoPosition))
-                {
-                    ExecuteTheoreticalExit(bars, currentTheoPosition);
-                    return;
-                }
-            }
-
-            // Check entries
-            if (currentTheoPosition == 0 && !HasLiveOrder())
-            {
-                if (ShouldEnterLongPosition(bars))
-                {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Buy);
-                }
-                else if (ShouldEnterShortPosition(bars))
-                {
-                    ExecuteTheoreticalEntry(bars, OrderSide.Sell);
-                }
-            }
-        }
-
+        // Consolidated bar processing and trading logic
         public override void OnBar(Bar[] bars)
         {
             Bar signalBar = GetSignalBar(bars);
 
-            // Update statistics
+            // 1. Update statistics (from old OnBar)
             priceWindow.Enqueue(signalBar.Close);
 
             if (priceWindow.Count > lookbackPeriod)
@@ -135,7 +104,40 @@ namespace StrategyManagement
                 isStatisticsReady = true;
             }
 
-            // Update metrics
+            // 2. Cancel any existing orders
+            CancelCurrentOrder();
+
+            int currentTheoPosition = GetCurrentTheoPosition();
+
+            // 3. Check exit conditions (from old ProcessBar)
+            if (currentTheoPosition != 0)
+            {
+                if (ShouldExitPosition(bars, currentTheoPosition))
+                {
+                    ExecuteTheoreticalExit(bars, currentTheoPosition);
+                    return;
+                }
+            }
+
+            // 4. Check entry conditions (from old ShouldEnter methods)
+            if (currentTheoPosition == 0 && !HasLiveOrder() && isStatisticsReady)
+            {
+                if (IsWithinTradingHours(signalBar.DateTime) && CanEnterNewPosition(signalBar.DateTime))
+                {
+                    double deviation = (signalBar.Close - movingAverage) / standardDeviation;
+                    
+                    if (deviation < -entryThreshold)
+                    {
+                        ExecuteTheoreticalEntry(bars, OrderSide.Buy);
+                    }
+                    else if (deviation > entryThreshold)
+                    {
+                        ExecuteTheoreticalEntry(bars, OrderSide.Sell);
+                    }
+                }
+            }
+
+            // 5. Update metrics
             DualPositionManager?.TheoPositionManager?.UpdateTradeMetric(signalBar);
             DualPositionManager?.ActualPositionManager?.UpdateTradeMetric(signalBar);
         }
@@ -167,45 +169,7 @@ namespace StrategyManagement
                 return deviation < exitThreshold;
         }
 
-        public override bool ShouldEnterLongPosition(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
 
-            if (!IsWithinTradingHours(signalBar.DateTime) || !CanEnterNewPosition(signalBar.DateTime))
-                return false;
-
-            if (!isStatisticsReady)
-                return false;
-
-            double deviation = (signalBar.Close - movingAverage) / standardDeviation;
-            return deviation < -entryThreshold;
-        }
-
-        public override bool ShouldEnterShortPosition(Bar[] bars)
-        {
-            Bar signalBar = GetSignalBar(bars);
-
-            if (!IsWithinTradingHours(signalBar.DateTime) || !CanEnterNewPosition(signalBar.DateTime))
-                return false;
-
-            if (!isStatisticsReady)
-                return false;
-
-            double deviation = (signalBar.Close - movingAverage) / standardDeviation;
-            return deviation > entryThreshold;
-        }
-
-        public override bool ShouldExitLongPosition(Bar[] bars)
-        {
-            int pos = GetCurrentTheoPosition();
-            return pos > 0 && ShouldExitPosition(bars, pos);
-        }
-
-        public override bool ShouldExitShortPosition(Bar[] bars)
-        {
-            int pos = GetCurrentTheoPosition();
-            return pos < 0 && ShouldExitPosition(bars, pos);
-        }
 
         private void CalculateStatistics()
         {
