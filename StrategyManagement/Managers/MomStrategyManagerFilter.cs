@@ -496,7 +496,7 @@ namespace StrategyManagement
             return multiArray;
         }
 
-        public override void ProcessBar(Bar[] bars)
+        public void ProcessBar(Bar[] bars)
         {
             //throw new NotImplementedException();
         }

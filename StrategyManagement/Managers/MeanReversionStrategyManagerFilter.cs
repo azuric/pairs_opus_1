@@ -309,7 +309,7 @@ namespace StrategyManagement
                 return deviation < exitThreshold;
         }
 
-        public override bool ShouldEnterLongPosition(Bar[] bars)
+        public bool ShouldEnterLongPosition(Bar[] bars)
         {
             Bar signalBar = GetSignalBar(bars);
 
@@ -344,7 +344,7 @@ namespace StrategyManagement
             return longSignalActive && longSignalFilterPassed;
         }
 
-        public override bool ShouldEnterShortPosition(Bar[] bars)
+        public bool ShouldEnterShortPosition(Bar[] bars)
         {
             Bar signalBar = GetSignalBar(bars);
 
@@ -379,13 +379,13 @@ namespace StrategyManagement
             return shortSignalActive && shortSignalFilterPassed;
         }
 
-        public override bool ShouldExitLongPosition(Bar[] bars)
+        public bool ShouldExitLongPosition(Bar[] bars)
         {
             int pos = GetCurrentTheoPosition();
             return pos > 0 && ShouldExitPosition(bars, pos);
         }
 
-        public override bool ShouldExitShortPosition(Bar[] bars)
+        public bool ShouldExitShortPosition(Bar[] bars)
         {
             int pos = GetCurrentTheoPosition();
             return pos < 0 && ShouldExitPosition(bars, pos);
@@ -562,7 +562,7 @@ namespace StrategyManagement
             return score;
         }
 
-        public override void ProcessBar(Bar[] bars)
+        public void ProcessBar(Bar[] bars)
         {
             //throw new NotImplementedException();
         }

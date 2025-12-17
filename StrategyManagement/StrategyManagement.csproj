@@ -68,6 +68,7 @@
     <Compile Include="Managers\MeanReversionStrategyManager.cs" />
     <Compile Include="Managers\MomentumStrategyManager.cs" />
     <Compile Include="Managers\MomStrategyManagerFilter.cs" />
+    <Compile Include="Managers\OUStrategyManager.cs" />
     <Compile Include="Managers\SimpleStrategyManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RefactoredPositionManager.cs" />

@@ -30,11 +30,11 @@ namespace StrategyManagement
             base.Initialize(parameters); // This now handles both signal and trade configuration
 
             // Existing parameter initialization...
-            lookbackPeriod = 240;
-            entryThreshold = 1.5;
-            exitThreshold = 0.5;
-            stopLossPercent = 0.03;
-            takeProfitPercent = 0.05;
+            lookbackPeriod = 1380;
+            entryThreshold = 2.0;
+            exitThreshold = 0.0;
+            stopLossPercent = 0.003;
+            takeProfitPercent = 0.003;
 
             // Parse strategy-specific parameters...
             // (existing parameter parsing code)
@@ -126,11 +126,11 @@ namespace StrategyManagement
                 {
                     double deviation = (signalBar.Close - movingAverage) / standardDeviation;
                     
-                    if (deviation < -entryThreshold)
-                    {
-                        ExecuteTheoreticalEntry(bars, OrderSide.Buy);
-                    }
-                    else if (deviation > entryThreshold)
+                    //if (deviation < -entryThreshold)
+                    //{
+                    //    ExecuteTheoreticalEntry(bars, OrderSide.Buy);
+                    //}
+                    if (deviation > entryThreshold)
                     {
                         ExecuteTheoreticalEntry(bars, OrderSide.Sell);
                     }
@@ -157,16 +157,19 @@ namespace StrategyManagement
             // Check stop/take profit
             double pnlPercent = CalculateUnrealizedPnLPercent(executionBar.Close);
 
-            //if (pnlPercent < -stopLossPercent || pnlPercent > takeProfitPercent)
-            //    return true;
+            //if (pnlPercent < -stopLossPercent  || 
+            if (pnlPercent > takeProfitPercent)
+                return true;
+
+            return false;
 
             // Mean reversion exit
-            double deviation = (signalBar.Close - movingAverage) / standardDeviation;
+            //double deviation = (signalBar.Close - movingAverage) / standardDeviation;
 
-            if (currentPosition > 0)
-                return deviation > -exitThreshold;
-            else
-                return deviation < exitThreshold;
+            //if (currentPosition > 0)
+            //    return deviation > -exitThreshold;
+            //else
+            //    return deviation < exitThreshold;
         }
 
 

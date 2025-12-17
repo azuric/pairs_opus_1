@@ -17,6 +17,9 @@ namespace StrategyManagement
 
             switch (strategyType.ToLowerInvariant())
             {
+                case "ou_strategy":
+                    return new OUStrategyManager(tradeInstrument);
+
                 case "mean_reversion":
                     return new MeanReversionStrategyManager(tradeInstrument);
 
@@ -71,6 +74,9 @@ namespace StrategyManagement
             if (parameters.name != null)
             {
                 var nameLower = parameters.strategy_type.ToLowerInvariant();
+
+                if (nameLower.Contains("ou_strategy"))
+                    return "ou_strategy";
 
                 if (nameLower.Contains("mean_reversion_filter"))
                     return "mean_reversion_filter";
